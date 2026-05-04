@@ -1,0 +1,20 @@
+{
+  "name": "sheba-scraper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:telegram": "tsx src/telegramScraper.ts",
+    "start:website": "tsx src/websiteScraper.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "playwright": "^1.40.0",
+    "@sheba/db": "file:../../packages/db"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  }
+}

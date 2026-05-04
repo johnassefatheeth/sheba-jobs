@@ -1,0 +1,12 @@
+:root{
+  --max-width: 900px;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;color:#0f172a}
+.container{max-width:var(--max-width);margin:0 auto;padding:1rem}
+.site-header{background:#0f172a;color:#fff;padding:.75rem 0}
+.job-card{border:1px solid #e6e9ef;padding:1rem;border-radius:8px;margin-bottom:1rem}
+.job-title{font-weight:600}
+.filters{display:flex;gap:.5rem;margin:1rem 0}
+.search{flex:1}
+.apply-btn{background:#0369a1;color:white;padding:.5rem 1rem;border-radius:6px;text-decoration:none}
