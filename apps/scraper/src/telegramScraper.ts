@@ -1,38 +1,117 @@
-import 'dotenv/config'
-import { prisma } from '@sheba/db'
-// Example: gramjs usage
-// This file is a starting point — configure your Telegram API credentials in .env
+import "dotenv/config";
+import { TelegramClient } from "telegram";
+import { StringSession } from "telegram/sessions/StringSession.js";
+import { prisma } from "@sheba/db";
 
-async function runTelegramScraper() {
-  console.log('Telegram scraper starting (example)')
-
-  // Pseudocode / example: connect with gramjs, iterate messages from channels,
-  // parse job posts and upsert into DB.
-
-  // For each extracted job:
-  const exampleJob = {
-    title: 'Frontend Developer (Remote)',
-    company: 'Acme Ltd',
-    location: 'Addis Ababa',
-    category: 'Engineering',
-    description: 'We are hiring a frontend dev...',
-    source: 'telegram',
-    sourceUrl: 'https://t.me/example/123',
-    applyUrl: 'https://acme.example/apply',
-    postedAt: new Date()
+function normalizeChannelRef(raw: string): string {
+  const s = raw.trim();
+  if (!s) return "";
+  if (s.startsWith("https://t.me/") || s.startsWith("http://t.me/")) {
+    const path = s.replace(/^https?:\/\/t\.me\//i, "").split(/[/?#]/)[0];
+    return path || "";
   }
-
-  try {
-    // deduplicate using unique constraint (title + sourceUrl)
-    await prisma.job.upsert({
-      where: { title_sourceUrl_unique: { title: exampleJob.title, sourceUrl: exampleJob.sourceUrl } },
-      update: { description: exampleJob.description, postedAt: exampleJob.postedAt },
-      create: exampleJob as any
-    })
-    console.log('Upserted example job')
-  } catch (err) {
-    console.error('DB error', err)
-  }
+  return s.replace(/^@/, "");
 }
 
-runTelegramScraper().catch(err=>{console.error(err);process.exit(1)})
+/**
+ * Scrape recent messages from Telegram channels you can read with this account.
+ * Requires a saved user session — run `npm run telegram:session` once.
+ */
+async function runTelegramScraper() {
+  const apiId = Number(process.env.TELEGRAM_API_ID);
+  const apiHash = process.env.TELEGRAM_API_HASH?.trim();
+  const sessionStr = process.env.TELEGRAM_SESSION?.trim();
+  const channelsRaw = process.env.TELEGRAM_CHANNELS?.trim();
+
+  if (!apiId || !apiHash) {
+    console.error("Set TELEGRAM_API_ID and TELEGRAM_API_HASH (from https://my.telegram.org) in apps/scraper/.env");
+    process.exit(1);
+  }
+  if (!sessionStr) {
+    console.error(
+      "Set TELEGRAM_SESSION in apps/scraper/.env after running: npm run telegram:session\nSee apps/scraper/README.md"
+    );
+    process.exit(1);
+  }
+  if (!channelsRaw) {
+    console.error("Set TELEGRAM_CHANNELS (comma-separated @handles or t.me links) in apps/scraper/.env");
+    process.exit(1);
+  }
+
+  const channels = channelsRaw
+    .split(",")
+    .map(normalizeChannelRef)
+    .filter(Boolean);
+
+  const limit = Math.min(200, Math.max(1, Number(process.env.TELEGRAM_FETCH_LIMIT || "50")));
+
+  const stringSession = new StringSession(sessionStr);
+  const client = new TelegramClient(stringSession, apiId, apiHash, {
+    connectionRetries: 5,
+  });
+
+  await client.connect();
+  if (!(await client.checkAuthorization())) {
+    console.error("Telegram session is not authorized. Run: npm run telegram:session");
+    await client.disconnect();
+    process.exit(1);
+  }
+
+  console.log("[telegram] channels:", channels.join(", "), "| limit:", limit);
+
+  for (const uname of channels) {
+    try {
+      for await (const msg of client.iterMessages(uname, { limit })) {
+        const text = msg.message;
+        if (!text || typeof text !== "string") continue;
+        const trimmed = text.trim();
+        if (trimmed.length < 12) continue;
+
+        const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const title = (lines[0] || "Telegram post").slice(0, 200);
+        const description = trimmed.length > title.length ? trimmed : null;
+        const sourceUrl = `https://t.me/${uname}/${msg.id}`;
+
+        const postedAt = (() => {
+          const d = msg.date as number | undefined;
+          if (d == null) return new Date();
+          return new Date(d < 1e12 ? d * 1000 : d);
+        })();
+
+        try {
+          await prisma.job.upsert({
+            where: { title_sourceUrl_unique: { title, sourceUrl } },
+            update: {
+              description: description ?? undefined,
+              postedAt,
+            },
+            create: {
+              title,
+              company: null,
+              location: null,
+              category: "telegram",
+              description: description ?? "",
+              source: "telegram",
+              sourceUrl,
+              applyUrl: null,
+              postedAt,
+            },
+          });
+          console.log("[telegram] upsert", title.slice(0, 60));
+        } catch (err) {
+          console.error("[telegram] db error", sourceUrl, err);
+        }
+      }
+    } catch (err) {
+      console.error("[telegram] channel error:", uname, err);
+    }
+  }
+
+  await client.disconnect();
+  console.log("[telegram] done");
+}
+
+runTelegramScraper().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

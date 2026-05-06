@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "start:telegram": "tsx src/telegramScraper.ts",
-    "start:website": "tsx src/websiteScraper.ts"
+    "start:website": "tsx src/websiteScraper.ts",
+    "telegram:session": "tsx src/telegramSessionSetup.ts"
   },
   "dependencies": {
+    "@sheba/db": "file:../../packages/db",
     "dotenv": "^16.0.0",
-    "playwright": "^1.40.0",
-    "@sheba/db": "file:../../packages/db"
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

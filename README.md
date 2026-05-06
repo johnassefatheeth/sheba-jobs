@@ -59,11 +59,14 @@ cd apps/web
 npm run dev
 ```
 
-7. Scraper (example):
+7. Scraper — see **`apps/scraper/README.md`** (Telegram session setup + website JSON API env vars).
 
 ```bash
 cd apps/scraper
+npm install
+npm run telegram:session   # once, to obtain TELEGRAM_SESSION
 npm run start:telegram
+npm run start:website      # needs WEBSITE_JOBS_* in .env
 ```
 
 Deployment
