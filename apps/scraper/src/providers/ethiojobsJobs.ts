@@ -71,7 +71,7 @@ export async function fetchEthiojobsJobsMapped(
   const baseUrl = options.baseUrl ?? process.env.ETHIOJOBS_API_URL?.trim() ?? DEFAULT_BASE_URL;
   const startPage = options.startPage ?? Math.max(1, Number(process.env.ETHIOJOBS_START_PAGE ?? "1"));
   const pageSize = options.pageSize ?? Math.min(50, Math.max(1, Number(process.env.ETHIOJOBS_PAGE_SIZE ?? "10")));
-  const maxJobs = options.maxJobs ?? Math.min(500, Math.max(1, Number(process.env.ETHIOJOBS_JOBS_LIMIT ?? "200")));
+  const maxJobs = options.maxJobs ?? Math.min(2000, Math.max(1, Number(process.env.ETHIOJOBS_JOBS_LIMIT ?? "500")));
   const detailTemplate = process.env.ETHIOJOBS_JOB_DETAIL_URL_TEMPLATE?.trim() ?? DEFAULT_DETAIL_TEMPLATE;
 
   let extraHeaders: Record<string, string> = {};

@@ -141,7 +141,7 @@ const DEFAULT_DETAIL_TEMPLATE = "https://www.hahu.jobs/job/{{id}}";
 
 export async function fetchHahuJobsMapped(options: FetchHahuOptions = {}): Promise<HahuMappedRow[]> {
   const graphqlUrl = options.graphqlUrl ?? process.env.HAHU_GRAPHQL_URL?.trim() ?? DEFAULT_GRAPHQL_URL;
-  const limit = options.limit ?? Math.min(200, Math.max(1, Number(process.env.HAHU_JOBS_LIMIT ?? "200")));
+  const limit = options.limit ?? Math.min(2000, Math.max(1, Number(process.env.HAHU_JOBS_LIMIT ?? "500")));
   const offset = options.offset ?? Math.max(0, Number(process.env.HAHU_JOBS_OFFSET ?? "0"));
   const detailTemplate =
     options.detailUrlTemplate?.trim() ??

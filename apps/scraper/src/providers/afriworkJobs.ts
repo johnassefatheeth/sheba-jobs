@@ -102,7 +102,7 @@ export async function fetchAfriworkJobsMapped(
   const graphqlUrl = options.graphqlUrl ?? process.env.AFRIWORK_GRAPHQL_URL?.trim() ?? DEFAULT_GRAPHQL_URL;
   const startOffset = options.offset ?? Math.max(0, Number(process.env.AFRIWORK_JOBS_OFFSET ?? "0"));
   const pageSize = options.pageSize ?? Math.min(50, Math.max(1, Number(process.env.AFRIWORK_JOBS_PAGE_SIZE ?? "20")));
-  const maxJobs = options.maxJobs ?? Math.min(500, Math.max(1, Number(process.env.AFRIWORK_JOBS_LIMIT ?? "200")));
+  const maxJobs = options.maxJobs ?? Math.min(2000, Math.max(1, Number(process.env.AFRIWORK_JOBS_LIMIT ?? "500")));
   const detailTemplate =
     options.detailUrlTemplate?.trim() ??
     process.env.AFRIWORK_JOB_DETAIL_URL_TEMPLATE?.trim() ??

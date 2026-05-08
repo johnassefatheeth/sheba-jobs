@@ -106,7 +106,7 @@ export async function fetchEffoysiraJobsMapped(
   const baseUrl = options.baseUrl ?? process.env.EFFOYSIRA_API_URL?.trim() ?? DEFAULT_BASE_URL;
   const startPage = options.startPage ?? Math.max(1, Number(process.env.EFFOYSIRA_START_PAGE ?? "1"));
   const pageSize = options.pageSize ?? Math.min(100, Math.max(1, Number(process.env.EFFOYSIRA_PAGE_SIZE ?? "20")));
-  const maxJobs = options.maxJobs ?? Math.min(500, Math.max(1, Number(process.env.EFFOYSIRA_JOBS_LIMIT ?? "200")));
+  const maxJobs = options.maxJobs ?? Math.min(2000, Math.max(1, Number(process.env.EFFOYSIRA_JOBS_LIMIT ?? "500")));
 
   let extraHeaders: Record<string, string> = {};
   if (process.env.EFFOYSIRA_API_HEADERS?.trim()) {
