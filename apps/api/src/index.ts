@@ -13,18 +13,39 @@ const PORT = process.env.PORT_API || 4000;
 
 // GET /jobs with optional filters: search, location, category, limit, offset
 app.get('/jobs', async (req: Request, res: Response) => {
-  const { search, location, category, limit = '50', offset = '0' } = req.query;
+  const {
+    search,
+    location,
+    category,
+    posterType,
+    jobType,
+    experienceLevel,
+    educationLevel,
+    isRemote,
+    isInternship,
+    includeExpired = 'false',
+    limit = '50',
+    offset = '0'
+  } = req.query;
 
   const where: any = {};
 
   if (search) {
     where.OR = [
       { title: { contains: String(search), mode: 'insensitive' } },
-      { description: { contains: String(search), mode: 'insensitive' } }
+      { description: { contains: String(search), mode: 'insensitive' } },
+      { company: { contains: String(search), mode: 'insensitive' } }
     ];
   }
-  if (location) where.location = { equals: String(location), mode: 'insensitive' };
-  if (category) where.category = { equals: String(category), mode: 'insensitive' };
+  if (location) where.normalizedLocation = { contains: String(location).toLowerCase(), mode: 'insensitive' };
+  if (category) where.normalizedCategory = { equals: String(category), mode: 'insensitive' };
+  if (posterType) where.posterType = { equals: String(posterType), mode: 'insensitive' };
+  if (jobType) where.jobType = { equals: String(jobType), mode: 'insensitive' };
+  if (experienceLevel) where.experienceLevel = { equals: String(experienceLevel), mode: 'insensitive' };
+  if (educationLevel) where.educationLevel = { equals: String(educationLevel), mode: 'insensitive' };
+  if (isRemote !== undefined) where.isRemote = String(isRemote).toLowerCase() === 'true';
+  if (isInternship !== undefined) where.isInternship = String(isInternship).toLowerCase() === 'true';
+  if (String(includeExpired).toLowerCase() !== 'true') where.isExpired = false;
 
   try {
     const jobs = await prisma.job.findMany({

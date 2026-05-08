@@ -89,6 +89,8 @@ export type HahuMappedRow = {
   postedAt: Date | null;
   sourceUrl: string;
   rawSource: string | null;
+  expiresAt?: Date | null;
+  isExpired?: boolean;
 };
 
 function formatLocation(j: HahuGraphqlJob): string | null {
@@ -122,6 +124,8 @@ function mapJob(j: HahuGraphqlJob, detailTemplate: string): HahuMappedRow {
     postedAt: j.approved_on ? new Date(j.approved_on) : j.deadline ? new Date(j.deadline) : null,
     sourceUrl: detailUrl,
     rawSource: j.source ?? null,
+    expiresAt: j.deadline ? new Date(j.deadline) : null,
+    isExpired: Boolean(j.expired),
   };
 }
 

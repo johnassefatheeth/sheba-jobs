@@ -3,6 +3,8 @@
  * Endpoint: https://effoysira.com/wp-json/wp/v2/posts
  */
 
+import { htmlToText } from "../lib/jobEnrichment.js";
+
 const DEFAULT_BASE_URL = "https://effoysira.com/wp-json/wp/v2/posts";
 const DEFAULT_DETAIL_TEMPLATE = "https://effoysira.com/{{slug}}/";
 
@@ -41,33 +43,6 @@ export type FetchEffoysiraOptions = {
   maxJobs?: number;
   headers?: Record<string, string>;
 };
-
-function decodeHtml(html: string): string {
-  return html
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCharCode(Number.parseInt(h, 16)))
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
-}
-
-function htmlToText(html: string): string {
-  const withLineBreaks = html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|blockquote)>/gi, "\n")
-    .replace(/<\/ul>|<\/ol>|<\/table>/gi, "\n\n");
-
-  const noTags = withLineBreaks.replace(/<[^>]+>/g, " ");
-  return decodeHtml(noTags)
-    .replace(/\r/g, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-}
 
 function pickCategory(post: EffoysiraPost): string | null {
   const fromYoast = post.yoast_head_json?.articleSection?.[0]?.trim();

@@ -59,6 +59,8 @@ export type AfriworkMappedRow = {
   postedAt: Date | null;
   sourceUrl: string;
   rawSource: string | null;
+  expiresAt?: Date | null;
+  isExpired?: boolean;
 };
 
 function mapJob(j: AfriworkJob, detailTemplate: string): AfriworkMappedRow {
@@ -78,6 +80,8 @@ function mapJob(j: AfriworkJob, detailTemplate: string): AfriworkMappedRow {
     postedAt: posted ? new Date(posted) : null,
     sourceUrl,
     rawSource: j.approval_status ?? "PUBLISHED",
+    expiresAt: j.deadline ? new Date(j.deadline) : null,
+    isExpired: j.deadline ? new Date(j.deadline).getTime() < Date.now() : false,
   };
 }
 

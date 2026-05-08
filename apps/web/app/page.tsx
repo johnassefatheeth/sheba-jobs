@@ -10,6 +10,24 @@ type Job = {
   postedAt?: string
 }
 
+function timeAgo(value?: string) {
+  if (!value) return '—'
+  const ts = new Date(value).getTime()
+  if (Number.isNaN(ts)) return '—'
+  const diffMs = Date.now() - ts
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  const years = Math.floor(months / 12)
+  return `${years}y ago`
+}
+
 export default function Page() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -53,7 +71,9 @@ export default function Page() {
           <div key={job.id} className="job-card">
             <a href={`/job/${job.id}`} className="job-title">{job.title}</a>
             <div>{job.company} • {job.location} • {job.category}</div>
-            <div style={{marginTop:'.5rem',fontSize:'.9rem',color:'#475569'}}>Posted: {job.postedAt ? new Date(job.postedAt).toLocaleString() : '—'}</div>
+            <div style={{marginTop:'.5rem',fontSize:'.9rem',color:'#475569'}}>
+              Posted: {job.postedAt ? new Date(job.postedAt).toLocaleString() : '—'} ({timeAgo(job.postedAt)})
+            </div>
           </div>
         ))}
       </section>

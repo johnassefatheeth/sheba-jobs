@@ -8,17 +8,31 @@ datasource db {
 }
 
 model Job {
-  id         String   @id @default(cuid())
-  title      String
-  company    String?
-  location   String?
-  category   String?
+  id          String   @id @default(cuid())
+  title       String
+  normalizedTitle String?
+  company     String?
+  normalizedCompany String?
+  location    String?
+  normalizedLocation String?
+  category    String?
+  normalizedCategory String?
+  posterType  String?
+  jobType     String?
+  experienceLevel String?
+  educationLevel String?
+  isRemote    Boolean  @default(false)
+  isInternship Boolean @default(false)
+  isExpired   Boolean  @default(false)
+  expiresAt   DateTime?
+  canonicalKey String?
   description String?
-  source     String
-  sourceUrl  String?
-  applyUrl   String?
-  postedAt   DateTime?
-  createdAt  DateTime @default(now())
+  source      String
+  sourceUrl   String?
+  applyUrl    String?
+  postedAt    DateTime?
+  createdAt   DateTime @default(now())
 
   @@unique([title, sourceUrl], name: "title_sourceUrl_unique")
+  @@index([canonicalKey], map: "job_canonical_key_idx")
 }

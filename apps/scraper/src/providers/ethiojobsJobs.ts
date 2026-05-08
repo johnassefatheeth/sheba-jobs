@@ -31,6 +31,8 @@ export type EthiojobsMappedRow = {
   postedAt: Date | null;
   sourceUrl: string;
   rawSource: string | null;
+  expiresAt?: Date | null;
+  isExpired?: boolean;
 };
 
 export type FetchEthiojobsOptions = {
@@ -58,6 +60,8 @@ function mapJob(j: EthiojobsJob, detailTemplate: string): EthiojobsMappedRow {
     postedAt: j.date_published ? new Date(j.date_published) : null,
     sourceUrl,
     rawSource: j.application_method ?? "ethiojobs",
+    expiresAt: j.date_expiry ? new Date(j.date_expiry) : null,
+    isExpired: j.date_expiry ? new Date(j.date_expiry).getTime() < Date.now() : false,
   };
 }
 

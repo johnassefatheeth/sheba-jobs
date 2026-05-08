@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "@sheba/db";
 import { fetchJobsFromApi, type FieldMap } from "./lib/fetchJobsFromApi.js";
+import { enrichJobRow, type RawJobRow } from "./lib/jobEnrichment.js";
 import { fetchAfriworkJobsMapped } from "./providers/afriworkJobs.js";
 import { fetchEffoysiraJobsMapped } from "./providers/effoysiraJobs.js";
 import { fetchEthiojobsJobsMapped } from "./providers/ethiojobsJobs.js";
@@ -104,47 +105,75 @@ async function runWebsiteScraper() {
   console.log("[website] done,", rows.length, "rows from HaHu");
 }
 
-async function persistRows(
-  rows: Array<{
-    title: string;
-    company: string | null;
-    location: string | null;
-    category: string | null;
-    description: string;
-    applyUrl: string | null;
-    postedAt: Date | null;
-    sourceUrl: string;
-    rawSource: string | null;
-  }>,
-  sourcePrefix: string
-) {
+async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
   for (const j of rows) {
     try {
+      const enriched = enrichJobRow(j);
+      if (enriched.isExpired) {
+        console.log("[website] skip expired", enriched.title.slice(0, 70));
+        continue;
+      }
       const sourceTag = j.rawSource ? `${sourcePrefix}:${j.rawSource}` : sourcePrefix;
-      await prisma.job.upsert({
-        where: { title_sourceUrl_unique: { title: j.title, sourceUrl: j.sourceUrl } },
-        update: {
-          company: j.company,
-          location: j.location,
-          category: j.category,
-          description: j.description,
-          applyUrl: j.applyUrl,
-          postedAt: j.postedAt,
-          source: sourceTag,
-        },
-        create: {
-          title: j.title,
-          company: j.company,
-          location: j.location,
-          category: j.category ?? "General",
-          description: j.description,
-          source: sourceTag,
-          sourceUrl: j.sourceUrl,
-          applyUrl: j.applyUrl ?? j.sourceUrl,
-          postedAt: j.postedAt,
-        },
+      const existing = await prisma.job.findFirst({
+        where: { canonicalKey: enriched.canonicalKey },
+        select: { id: true },
       });
-      console.log("[website] upsert", j.title.slice(0, 70));
+      if (existing) {
+        await prisma.job.update({
+          where: { id: existing.id },
+          data: {
+          title: enriched.title,
+          normalizedTitle: enriched.normalizedTitle,
+          company: enriched.company,
+          normalizedCompany: enriched.normalizedCompany,
+          location: enriched.location,
+          normalizedLocation: enriched.normalizedLocation,
+          category: enriched.category,
+          normalizedCategory: enriched.normalizedCategory,
+          posterType: enriched.posterType,
+          jobType: enriched.jobType,
+          experienceLevel: enriched.experienceLevel,
+          educationLevel: enriched.educationLevel,
+          isRemote: enriched.isRemote,
+          isInternship: enriched.isInternship,
+          isExpired: enriched.isExpired,
+          expiresAt: enriched.expiresAt,
+          description: enriched.description,
+          sourceUrl: enriched.sourceUrl,
+          applyUrl: enriched.applyUrl,
+          postedAt: enriched.postedAt,
+          source: sourceTag,
+        },
+        });
+      } else {
+        await prisma.job.create({
+          data: {
+          title: enriched.title,
+          normalizedTitle: enriched.normalizedTitle,
+          company: enriched.company,
+          normalizedCompany: enriched.normalizedCompany,
+          location: enriched.location,
+          normalizedLocation: enriched.normalizedLocation,
+          category: enriched.category ?? "General",
+          normalizedCategory: enriched.normalizedCategory,
+          posterType: enriched.posterType,
+          jobType: enriched.jobType,
+          experienceLevel: enriched.experienceLevel,
+          educationLevel: enriched.educationLevel,
+          isRemote: enriched.isRemote,
+          isInternship: enriched.isInternship,
+          isExpired: enriched.isExpired,
+          expiresAt: enriched.expiresAt,
+          canonicalKey: enriched.canonicalKey,
+          description: enriched.description,
+          source: sourceTag,
+          sourceUrl: enriched.sourceUrl,
+          applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
+          postedAt: enriched.postedAt,
+        },
+        });
+      }
+      console.log("[website] upsert", enriched.title.slice(0, 70));
     } catch (err) {
       console.error("[website] upsert error", j.title, err);
     }
@@ -194,29 +223,70 @@ async function runGenericApiScraper() {
 
   for (const j of jobs) {
     try {
-      await prisma.job.upsert({
-        where: { title_sourceUrl_unique: { title: j.title, sourceUrl: j.sourceUrl } },
-        update: {
-          company: j.company,
-          location: j.location,
-          category: j.category,
-          description: j.description,
-          applyUrl: j.applyUrl,
-          postedAt: j.postedAt,
-        },
-        create: {
-          title: j.title,
-          company: j.company,
-          location: j.location,
-          category: j.category ?? "General",
-          description: j.description ?? "",
-          source: "website_api",
-          sourceUrl: j.sourceUrl,
-          applyUrl: j.applyUrl ?? j.sourceUrl,
-          postedAt: j.postedAt,
-        },
+      const enriched = enrichJobRow(j);
+      if (enriched.isExpired) {
+        console.log("[website] skip expired", enriched.title.slice(0, 70));
+        continue;
+      }
+      const existing = await prisma.job.findFirst({
+        where: { canonicalKey: enriched.canonicalKey },
+        select: { id: true },
       });
-      console.log("[website] upsert", j.title);
+      if (existing) {
+        await prisma.job.update({
+          where: { id: existing.id },
+          data: {
+          title: enriched.title,
+          normalizedTitle: enriched.normalizedTitle,
+          company: enriched.company,
+          normalizedCompany: enriched.normalizedCompany,
+          location: enriched.location,
+          normalizedLocation: enriched.normalizedLocation,
+          category: enriched.category,
+          normalizedCategory: enriched.normalizedCategory,
+          posterType: enriched.posterType,
+          jobType: enriched.jobType,
+          experienceLevel: enriched.experienceLevel,
+          educationLevel: enriched.educationLevel,
+          isRemote: enriched.isRemote,
+          isInternship: enriched.isInternship,
+          isExpired: enriched.isExpired,
+          expiresAt: enriched.expiresAt,
+          description: enriched.description,
+          sourceUrl: enriched.sourceUrl,
+          applyUrl: enriched.applyUrl,
+          postedAt: enriched.postedAt,
+        },
+        });
+      } else {
+        await prisma.job.create({
+          data: {
+          title: enriched.title,
+          normalizedTitle: enriched.normalizedTitle,
+          company: enriched.company,
+          normalizedCompany: enriched.normalizedCompany,
+          location: enriched.location,
+          normalizedLocation: enriched.normalizedLocation,
+          category: enriched.category ?? "General",
+          normalizedCategory: enriched.normalizedCategory,
+          posterType: enriched.posterType,
+          jobType: enriched.jobType,
+          experienceLevel: enriched.experienceLevel,
+          educationLevel: enriched.educationLevel,
+          isRemote: enriched.isRemote,
+          isInternship: enriched.isInternship,
+          isExpired: enriched.isExpired,
+          expiresAt: enriched.expiresAt,
+          canonicalKey: enriched.canonicalKey,
+          description: enriched.description ?? "",
+          source: "website_api",
+          sourceUrl: enriched.sourceUrl,
+          applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
+          postedAt: enriched.postedAt,
+        },
+        });
+      }
+      console.log("[website] upsert", enriched.title);
     } catch (err) {
       console.error("[website] upsert error", j.title, err);
     }
