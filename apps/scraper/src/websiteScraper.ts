@@ -2,20 +2,29 @@ import "dotenv/config";
 import { prisma } from "@sheba/db";
 import { fetchJobsFromApi, type FieldMap } from "./lib/fetchJobsFromApi.js";
 import { fetchAfriworkJobsMapped } from "./providers/afriworkJobs.js";
+import { fetchEffoysiraJobsMapped } from "./providers/effoysiraJobs.js";
+import { fetchEthiojobsJobsMapped } from "./providers/ethiojobsJobs.js";
 import { fetchHahuJobsMapped } from "./providers/hahuJobs.js";
 
 /**
- * Default: `all` (HaHu + Afriwork).
- * Other modes: `hahu`, `afriwork`, `generic`.
+ * Default: `all` (HaHu + Afriwork + Ethiojobs + EffoySira).
+ * Other modes: `hahu`, `afriwork`, `ethiojobs`, `effoysira`, `generic`.
  */
 async function runWebsiteScraper() {
   const provider = (process.env.WEBSITE_JOBS_PROVIDER ?? "all").toLowerCase().trim();
 
   if (provider === "all") {
-    console.log("[website] provider: all (hahu + afriwork)");
-    const [hahuResult, afriResult] = await Promise.allSettled([fetchHahuJobsMapped(), fetchAfriworkJobsMapped()]);
+    console.log("[website] provider: all (hahu + afriwork + ethiojobs + effoysira)");
+    const [hahuResult, afriResult, ethioResult, effoysiraResult] = await Promise.allSettled([
+      fetchHahuJobsMapped(),
+      fetchAfriworkJobsMapped(),
+      fetchEthiojobsJobsMapped(),
+      fetchEffoysiraJobsMapped(),
+    ]);
     let hahuCount = 0;
     let afriCount = 0;
+    let ethioCount = 0;
+    let effoysiraCount = 0;
 
     if (hahuResult.status === "fulfilled") {
       hahuCount = hahuResult.value.length;
@@ -31,7 +40,47 @@ async function runWebsiteScraper() {
       console.error("[website] afriwork fetch failed:", afriResult.reason);
     }
 
-    console.log("[website] done,", hahuCount, "rows from HaHu and", afriCount, "rows from Afriwork");
+    if (ethioResult.status === "fulfilled") {
+      ethioCount = ethioResult.value.length;
+      await persistRows(ethioResult.value, "ethiojobs");
+    } else {
+      console.error("[website] ethiojobs fetch failed:", ethioResult.reason);
+    }
+
+    if (effoysiraResult.status === "fulfilled") {
+      effoysiraCount = effoysiraResult.value.length;
+      await persistRows(effoysiraResult.value, "effoysira");
+    } else {
+      console.error("[website] effoysira fetch failed:", effoysiraResult.reason);
+    }
+
+    console.log(
+      "[website] done,",
+      hahuCount,
+      "rows from HaHu,",
+      afriCount,
+      "rows from Afriwork and",
+      ethioCount,
+      "rows from Ethiojobs and",
+      effoysiraCount,
+      "rows from EffoySira"
+    );
+    return;
+  }
+
+  if (provider === "effoysira") {
+    console.log("[website] provider: effoysira (WordPress REST)");
+    const rows = await fetchEffoysiraJobsMapped();
+    await persistRows(rows, "effoysira");
+    console.log("[website] done,", rows.length, "rows from EffoySira");
+    return;
+  }
+
+  if (provider === "ethiojobs") {
+    console.log("[website] provider: ethiojobs (REST)");
+    const rows = await fetchEthiojobsJobsMapped();
+    await persistRows(rows, "ethiojobs");
+    console.log("[website] done,", rows.length, "rows from Ethiojobs");
     return;
   }
 

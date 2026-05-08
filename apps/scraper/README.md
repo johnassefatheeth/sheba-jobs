@@ -14,7 +14,7 @@ cd ../../packages/db && npm run build
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WEBSITE_JOBS_PROVIDER` | `all` | `all` (default), `hahu`, `afriwork`, or `generic`. |
+| `WEBSITE_JOBS_PROVIDER` | `all` | `all` (default), `hahu`, `afriwork`, `ethiojobs`, `effoysira`, or `generic`. |
 | `HAHU_GRAPHQL_URL` | `https://graph.aggregator.hahu.jobs/v1/graphql` | Override if the endpoint moves. |
 | `HAHU_JOBS_LIMIT` | `80` | Page size (capped at 200 in code). |
 | `HAHU_JOBS_OFFSET` | `0` | Pagination offset for later runs. |
@@ -35,6 +35,8 @@ With `WEBSITE_JOBS_PROVIDER=all` (or leaving it unset), one run fetches from:
 
 - HaHu GraphQL provider
 - Afriworket GraphQL provider
+- Ethiojobs REST provider
+- EffoySira WordPress REST provider
 
 and upserts both into your DB.
 
@@ -64,6 +66,58 @@ The query uses:
 - `operationName: "GetAllJobs"`
 - `orderCondition: { latest_activity_at: "desc" }`
 - `whereCondition: { _and: [{ approval_status: { _in: ["PUBLISHED","REFRESHED"] } }] }`
+
+Run:
+
+```bash
+npm run start:website
+```
+
+---
+
+## Website — Ethiojobs REST API
+
+Set:
+
+```env
+WEBSITE_JOBS_PROVIDER=ethiojobs
+ETHIOJOBS_API_URL=https://api.ethiojobs.net/ethiojobs/api/job-board/jobs
+ETHIOJOBS_START_PAGE=1
+ETHIOJOBS_PAGE_SIZE=10
+ETHIOJOBS_JOBS_LIMIT=200
+ETHIOJOBS_JOB_DETAIL_URL_TEMPLATE=https://ethiojobs.net/job/{{slug}}
+```
+
+Optional:
+
+- `ETHIOJOBS_CUSTOM_HEADER` (the `x-custom-header` token from browser request)
+- `ETHIOJOBS_API_HEADERS` JSON object for any extra headers
+- `ETHIOJOBS_HTTP_USER_AGENT` override
+
+Run:
+
+```bash
+npm run start:website
+```
+
+---
+
+## Website — EffoySira WordPress API
+
+Set:
+
+```env
+WEBSITE_JOBS_PROVIDER=effoysira
+EFFOYSIRA_API_URL=https://effoysira.com/wp-json/wp/v2/posts
+EFFOYSIRA_START_PAGE=1
+EFFOYSIRA_PAGE_SIZE=20
+EFFOYSIRA_JOBS_LIMIT=200
+```
+
+Optional:
+
+- `EFFOYSIRA_API_HEADERS` JSON object for extra headers
+- `EFFOYSIRA_HTTP_USER_AGENT` override
 
 Run:
 
