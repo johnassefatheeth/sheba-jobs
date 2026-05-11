@@ -1,12 +1,39 @@
 :root{
-  --max-width: 900px;
+  --max-width: 1100px;
+  --bg: #0f172a;
+  --muted: #64748b;
+  --card-border: #e6e9ef;
+  --accent: #0369a1;
 }
 *{box-sizing:border-box}
 body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;color:#0f172a}
 .container{max-width:var(--max-width);margin:0 auto;padding:1rem}
 .site-header{background:#0f172a;color:#fff;padding:.75rem 0}
-.job-card{border:1px solid #e6e9ef;padding:1rem;border-radius:8px;margin-bottom:1rem}
-.job-title{font-weight:600}
-.filters{display:flex;gap:.5rem;margin:1rem 0}
-.search{flex:1}
-.apply-btn{background:#0369a1;color:white;padding:.5rem 1rem;border-radius:6px;text-decoration:none}
+.job-card{border:1px solid var(--card-border);padding:1rem;border-radius:10px;margin-bottom:1rem;background:#fff;transition:transform .18s ease,box-shadow .18s ease}
+.job-card:hover{transform:translateY(-4px);box-shadow:0 8px 20px rgba(2,6,23,0.08)}
+.job-title{font-weight:700;color:#0b1220;text-decoration:none}
+.filters{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;align-items:center}
+.filters .search{flex:1;min-width:180px}
+.filters input[type="text"], .filters select{padding:.5rem .6rem;border:1px solid #e6e9ef;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfdff);transition:box-shadow .15s ease,border-color .15s ease}
+.filters input[type="text"]:focus, .filters select:focus{outline:none;box-shadow:0 0 0 3px rgba(3,105,161,0.08);border-color:var(--accent)}
+.filters label{font-size:.9rem;color:var(--muted)}
+.filters button{background:var(--accent);color:white;padding:.55rem .9rem;border-radius:8px;border:none;cursor:pointer}
+.filters .small-toggle{display:flex;align-items:center;gap:.4rem}
+.job-list{margin-top:1rem}
+
+/* Loading / Skeleton */
+.loading-center{display:flex;flex-direction:column;gap:.75rem;align-items:center;padding:1.5rem}
+.skeleton{background:linear-gradient(90deg,#f3f4f6,#eef2ff,#f3f4f6);background-size:200% 100%;animation:shimmer 1.2s linear infinite;border-radius:8px}
+.skeleton.card{height:84px;width:100%;border-radius:10px}
+.skeleton.title{height:18px;width:60%;margin-bottom:.5rem}
+.skeleton.line{height:12px;width:40%}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* small svg loader */
+.svg-loader{width:42px;height:42px}
+
+/* Responsive tweaks */
+@media (max-width:700px){
+  :root{--max-width:700px}
+  .filters{gap:.4rem}
+}
