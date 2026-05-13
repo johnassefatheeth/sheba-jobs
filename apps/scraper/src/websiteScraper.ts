@@ -7,6 +7,31 @@ import { fetchEffoysiraJobsMapped } from "./providers/effoysiraJobs.js";
 import { fetchEthiojobsJobsMapped } from "./providers/ethiojobsJobs.js";
 import { fetchHahuJobsMapped } from "./providers/hahuJobs.js";
 
+/** Display names for website scrapers (stored on Job.scrapedFrom). */
+const SCRAPER_SITE_LABELS: Record<string, string> = {
+  hahu: "HaHu Jobs",
+  afriwork: "Afriworket",
+  ethiojobs: "Ethiojobs",
+  effoysira: "EffoySira",
+};
+
+function siteLabelForProvider(prefix: string): string {
+  return SCRAPER_SITE_LABELS[prefix] ?? prefix;
+}
+
+function mergeScrapedFrom(existing: string | null | undefined, site: string): string {
+  const parts = new Set<string>();
+  const add = (s: string) => {
+    const t = s.trim();
+    if (t) parts.add(t);
+  };
+  if (existing) {
+    for (const p of existing.split(",")) add(p);
+  }
+  add(site);
+  return Array.from(parts).sort((a, b) => a.localeCompare(b)).join(", ");
+}
+
 /**
  * Default: `all` (HaHu + Afriwork + Ethiojobs + EffoySira).
  * Other modes: `hahu`, `afriwork`, `ethiojobs`, `effoysira`, `generic`.
@@ -114,11 +139,13 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
         continue;
       }
       const sourceTag = j.rawSource ? `${sourcePrefix}:${j.rawSource}` : sourcePrefix;
+      const siteLabel = siteLabelForProvider(sourcePrefix);
       const existing = await prisma.job.findFirst({
         where: { canonicalKey: enriched.canonicalKey },
-        select: { id: true },
+        select: { id: true, scrapedFrom: true },
       });
       if (existing) {
+        const scrapedFrom = mergeScrapedFrom(existing.scrapedFrom, siteLabel);
         await prisma.job.update({
           where: { id: existing.id },
           data: {
@@ -143,6 +170,7 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
           applyUrl: enriched.applyUrl,
           postedAt: enriched.postedAt,
           source: sourceTag,
+          scrapedFrom,
         },
         });
       } else {
@@ -167,6 +195,7 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
           canonicalKey: enriched.canonicalKey,
           description: enriched.description,
           source: sourceTag,
+          scrapedFrom: siteLabel,
           sourceUrl: enriched.sourceUrl,
           applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
           postedAt: enriched.postedAt,
@@ -212,6 +241,15 @@ async function runGenericApiScraper() {
   }
 
   console.log("[website] provider: generic GET", apiUrl);
+  let genericSiteLabel = process.env.WEBSITE_SCRAPER_SITE_LABEL?.trim();
+  if (!genericSiteLabel) {
+    try {
+      genericSiteLabel = new URL(apiUrl).hostname.replace(/^www\./, "");
+    } catch {
+      genericSiteLabel = "Custom API";
+    }
+  }
+
   const jobs = await fetchJobsFromApi({
     apiUrl,
     listPath,
@@ -230,9 +268,10 @@ async function runGenericApiScraper() {
       }
       const existing = await prisma.job.findFirst({
         where: { canonicalKey: enriched.canonicalKey },
-        select: { id: true },
+        select: { id: true, scrapedFrom: true },
       });
       if (existing) {
+        const scrapedFrom = mergeScrapedFrom(existing.scrapedFrom, genericSiteLabel);
         await prisma.job.update({
           where: { id: existing.id },
           data: {
@@ -256,6 +295,8 @@ async function runGenericApiScraper() {
           sourceUrl: enriched.sourceUrl,
           applyUrl: enriched.applyUrl,
           postedAt: enriched.postedAt,
+          source: "website_api",
+          scrapedFrom,
         },
         });
       } else {
@@ -280,6 +321,7 @@ async function runGenericApiScraper() {
           canonicalKey: enriched.canonicalKey,
           description: enriched.description ?? "",
           source: "website_api",
+          scrapedFrom: genericSiteLabel,
           sourceUrl: enriched.sourceUrl,
           applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
           postedAt: enriched.postedAt,

@@ -3,6 +3,21 @@ import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import { prisma } from "@sheba/db";
 
+const TELEGRAM_SITE_LABEL = "Telegram";
+
+function mergeScrapedFrom(existing: string | null | undefined, site: string): string {
+  const parts = new Set<string>();
+  const add = (s: string) => {
+    const t = s.trim();
+    if (t) parts.add(t);
+  };
+  if (existing) {
+    for (const p of existing.split(",")) add(p);
+  }
+  add(site);
+  return Array.from(parts).sort((a, b) => a.localeCompare(b)).join(", ");
+}
+
 function normalizeChannelRef(raw: string): string {
   const s = raw.trim();
   if (!s) return "";
@@ -79,24 +94,35 @@ async function runTelegramScraper() {
         })();
 
         try {
-          await prisma.job.upsert({
+          const existing = await prisma.job.findUnique({
             where: { title_sourceUrl_unique: { title, sourceUrl } },
-            update: {
-              description: description ?? undefined,
-              postedAt,
-            },
-            create: {
-              title,
-              company: null,
-              location: null,
-              category: "telegram",
-              description: description ?? "",
-              source: "telegram",
-              sourceUrl,
-              applyUrl: null,
-              postedAt,
-            },
+            select: { id: true, scrapedFrom: true },
           });
+          if (existing) {
+            await prisma.job.update({
+              where: { id: existing.id },
+              data: {
+                description: description ?? undefined,
+                postedAt,
+                scrapedFrom: mergeScrapedFrom(existing.scrapedFrom, TELEGRAM_SITE_LABEL),
+              },
+            });
+          } else {
+            await prisma.job.create({
+              data: {
+                title,
+                company: null,
+                location: null,
+                category: "telegram",
+                description: description ?? "",
+                source: "telegram",
+                scrapedFrom: TELEGRAM_SITE_LABEL,
+                sourceUrl,
+                applyUrl: null,
+                postedAt,
+              },
+            });
+          }
           console.log("[telegram] upsert", title.slice(0, 60));
         } catch (err) {
           console.error("[telegram] db error", sourceUrl, err);
