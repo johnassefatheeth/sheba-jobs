@@ -15,6 +15,7 @@ type Job = {
   educationLevel?: string
   isRemote?: boolean
   isInternship?: boolean
+  scrapedFrom?: string
 }
 
 function timeAgo(value?: string) {
@@ -54,6 +55,8 @@ export default function Page() {
   const [jobTypes, setJobTypes] = useState<string[]>([])
   const [experienceLevels, setExperienceLevels] = useState<string[]>([])
   const [educationLevels, setEducationLevels] = useState<string[]>([])
+  const [scrapedFrom, setScrapedFrom] = useState('')
+  const [scrapeSites, setScrapeSites] = useState<string[]>([])
 
   async function load() {
     const params = new URLSearchParams()
@@ -67,6 +70,7 @@ export default function Page() {
     if (isRemote) params.set('isRemote', 'true')
     if (isInternship) params.set('isInternship', 'true')
     if (includeExpired) params.set('includeExpired', 'true')
+    if (scrapedFrom) params.set('scrapedFrom', scrapedFrom)
 
     setLoadError(null)
     setLoading(true)
@@ -89,6 +93,15 @@ export default function Page() {
       setJobTypes(unique(list.map(j => j.jobType)))
       setExperienceLevels(unique(list.map(j => j.experienceLevel)))
       setEducationLevels(unique(list.map(j => j.educationLevel)))
+      const sites = new Set<string>()
+      for (const j of list) {
+        if (!j.scrapedFrom) continue
+        for (const part of j.scrapedFrom.split(',')) {
+          const t = part.trim()
+          if (t) sites.add(t)
+        }
+      }
+      setScrapeSites(Array.from(sites).sort())
 
       setLoadError(null)
     } catch (err) {
@@ -132,6 +145,11 @@ export default function Page() {
           {educationLevels.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
+        <select value={scrapedFrom} onChange={(e)=>setScrapedFrom(e.target.value)}>
+          <option value="">Any source site</option>
+          {scrapeSites.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
         <label className="small-toggle">
           <input type="checkbox" checked={isRemote} onChange={(e)=>setIsRemote(e.target.checked)} />
           Remote
@@ -146,7 +164,7 @@ export default function Page() {
         </label>
 
         <button onClick={load} aria-label="Filter">Filter</button>
-        <button onClick={() => { setSearch(''); setLocation(''); setCategory(''); setPosterType(''); setJobType(''); setExperienceLevel(''); setEducationLevel(''); setIsRemote(false); setIsInternship(false); setIncludeExpired(false); }} style={{background:'transparent',color:'var(--muted)',border:'none',cursor:'pointer'}}>Clear</button>
+        <button onClick={() => { setSearch(''); setLocation(''); setCategory(''); setPosterType(''); setJobType(''); setExperienceLevel(''); setEducationLevel(''); setScrapedFrom(''); setIsRemote(false); setIsInternship(false); setIncludeExpired(false); }} style={{background:'transparent',color:'var(--muted)',border:'none',cursor:'pointer'}}>Clear</button>
       </div>
 
       <section>
@@ -163,6 +181,11 @@ export default function Page() {
               <div key={job.id} className="job-card">
                 <a href={`/job/${job.id}`} className="job-title">{job.title}</a>
                 <div style={{marginTop:'.25rem',color:'var(--muted)'}}>{job.company || '—'} • {job.location || '—'} • {job.category || '—'}</div>
+                {job.scrapedFrom && (
+                  <div style={{marginTop:'.25rem',fontSize:'.82rem',color:'var(--accent, #0f766e)'}}>
+                    From: {job.scrapedFrom}
+                  </div>
+                )}
                 <div style={{marginTop:'.35rem',fontSize:'.88rem',color:varToString('var(--muted)')}}>
                   {job.posterType || '—'} • {job.jobType || '—'} • {job.experienceLevel || '—'} • {job.educationLevel || '—'}
                   {job.isRemote ? ' • Remote' : ''}{job.isInternship ? ' • Internship' : ''}

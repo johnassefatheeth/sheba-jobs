@@ -21,6 +21,7 @@ app.get('/jobs', async (req: Request, res: Response) => {
     jobType,
     experienceLevel,
     educationLevel,
+    scrapedFrom,
     isRemote,
     isInternship,
     includeExpired = 'false',
@@ -43,6 +44,7 @@ app.get('/jobs', async (req: Request, res: Response) => {
   if (jobType) where.jobType = { equals: String(jobType), mode: 'insensitive' };
   if (experienceLevel) where.experienceLevel = { equals: String(experienceLevel), mode: 'insensitive' };
   if (educationLevel) where.educationLevel = { equals: String(educationLevel), mode: 'insensitive' };
+  if (scrapedFrom) where.scrapedFrom = { contains: String(scrapedFrom), mode: 'insensitive' };
   if (isRemote !== undefined) where.isRemote = String(isRemote).toLowerCase() === 'true';
   if (isInternship !== undefined) where.isInternship = String(isInternship).toLowerCase() === 'true';
   if (String(includeExpired).toLowerCase() !== 'true') where.isExpired = false;

@@ -27,6 +27,8 @@ model Job {
   expiresAt   DateTime?
   canonicalKey String?
   description String?
+  /// Human-readable scrape origins, e.g. "Ethiojobs, HaHu Jobs" when merged across boards
+  scrapedFrom String?
   source      String
   sourceUrl   String?
   applyUrl    String?

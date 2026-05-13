@@ -8,6 +8,7 @@ type Job = {
   category?: string
   description?: string
   applyUrl?: string
+  scrapedFrom?: string
 }
 
 function sanitizeHtml(html: string): string {
@@ -34,6 +35,11 @@ export default async function JobPage({ params }: { params: { id: string } }) {
     <article>
       <h2>{job.title}</h2>
       <div>{job.company} • {job.location}</div>
+      {job.scrapedFrom && (
+        <p style={{ marginTop: '.5rem', fontSize: '.9rem', color: '#0f766e' }}>
+          Scraped from: {job.scrapedFrom}
+        </p>
+      )}
       {hasHtml ? (
         <div
           style={{ marginTop: '1rem' }}
