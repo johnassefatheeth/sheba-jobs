@@ -4,11 +4,13 @@ import Loading from './components/Loading'
 
 type Job = {
   id: string
+  slug?: string
   title: string
   company?: string
   location?: string
   category?: string
   postedAt?: string
+  freshness?: string
   posterType?: string
   jobType?: string
   experienceLevel?: string
@@ -18,22 +20,15 @@ type Job = {
   scrapedFrom?: string
 }
 
-function timeAgo(value?: string) {
-  if (!value) return '—'
-  const ts = new Date(value).getTime()
+function displayFreshness(job: Job) {
+  if (job.freshness) return job.freshness
+  if (!job.postedAt) return '—'
+  const ts = new Date(job.postedAt).getTime()
   if (Number.isNaN(ts)) return '—'
-  const diffMs = Date.now() - ts
-  const mins = Math.floor(diffMs / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  const years = Math.floor(months / 12)
-  return `${years}y ago`
+  const dayDiff = Math.floor((Date.now() - ts) / 86_400_000)
+  if (dayDiff <= 0) return 'Today'
+  if (dayDiff === 1) return 'Yesterday'
+  return `${dayDiff} days ago`
 }
 
 export default function Page() {
@@ -179,7 +174,7 @@ export default function Page() {
             {jobs.length === 0 && <p style={{color: 'var(--muted)'}}>No jobs found.</p>}
             {jobs.map(job => (
               <div key={job.id} className="job-card">
-                <a href={`/job/${job.id}`} className="job-title">{job.title}</a>
+                <a href={`/jobs/${job.slug || job.id}`} className="job-title">{job.title}</a>
                 <div style={{marginTop:'.25rem',color:'var(--muted)'}}>{job.company || '—'} • {job.location || '—'} • {job.category || '—'}</div>
                 {job.scrapedFrom && (
                   <div style={{marginTop:'.25rem',fontSize:'.82rem',color:'var(--accent, #0f766e)'}}>
@@ -191,7 +186,7 @@ export default function Page() {
                   {job.isRemote ? ' • Remote' : ''}{job.isInternship ? ' • Internship' : ''}
                 </div>
                 <div style={{marginTop:'.5rem',fontSize:'.9rem',color:'#475569'}}>
-                  Posted: {job.postedAt ? new Date(job.postedAt).toLocaleString() : '—'} ({timeAgo(job.postedAt)})
+                  Posted {displayFreshness(job)}
                 </div>
               </div>
             ))}

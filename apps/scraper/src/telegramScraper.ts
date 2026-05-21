@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
-import { prisma } from "@sheba/db";
+import { ensureUniqueJobSlug, prisma } from "@sheba/db";
+import { announceJobOnTelegram, assignSlugIfMissing } from "./lib/jobPublish.js";
 
 const TELEGRAM_SITE_LABEL = "Telegram";
 
@@ -96,20 +97,24 @@ async function runTelegramScraper() {
         try {
           const existing = await prisma.job.findUnique({
             where: { title_sourceUrl_unique: { title, sourceUrl } },
-            select: { id: true, scrapedFrom: true },
+            select: { id: true, title: true, company: true, scrapedFrom: true, slug: true },
           });
           if (existing) {
+            const slug = existing.slug || (await assignSlugIfMissing(existing));
             await prisma.job.update({
               where: { id: existing.id },
               data: {
+                slug,
                 description: description ?? undefined,
                 postedAt,
                 scrapedFrom: mergeScrapedFrom(existing.scrapedFrom, TELEGRAM_SITE_LABEL),
               },
             });
           } else {
-            await prisma.job.create({
+            const slug = await ensureUniqueJobSlug(prisma, title, null);
+            const created = await prisma.job.create({
               data: {
+                slug,
                 title,
                 company: null,
                 location: null,
@@ -118,10 +123,11 @@ async function runTelegramScraper() {
                 source: "telegram",
                 scrapedFrom: TELEGRAM_SITE_LABEL,
                 sourceUrl,
-                applyUrl: null,
+                applyUrl: sourceUrl,
                 postedAt,
               },
             });
+            await announceJobOnTelegram(created, true);
           }
           console.log("[telegram] upsert", title.slice(0, 60));
         } catch (err) {

@@ -47,4 +47,12 @@ export const prisma =
     ? (globalThis.prisma ??= new PrismaClient({ adapter }))
     : globalThis.prisma!;
 
+export { buildJobSlugBase, ensureUniqueJobSlug, slugifySegment } from "./slug.js";
+export { formatPostedFreshness } from "./freshness.js";
+export {
+  buildJobCanonicalPath,
+  buildJobSeoDescription,
+  buildJobSeoTitle,
+} from "./seo.js";
+
 export default prisma;

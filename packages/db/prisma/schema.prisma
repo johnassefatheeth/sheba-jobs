@@ -9,6 +9,7 @@ datasource db {
 
 model Job {
   id          String   @id @default(cuid())
+  slug        String?  @unique
   title       String
   normalizedTitle String?
   company     String?
@@ -33,6 +34,7 @@ model Job {
   sourceUrl   String?
   applyUrl    String?
   postedAt    DateTime?
+  telegramPostedAt DateTime?
   createdAt   DateTime @default(now())
 
   @@unique([title, sourceUrl], name: "title_sourceUrl_unique")

@@ -1,7 +1,8 @@
 import "dotenv/config";
-import { prisma } from "@sheba/db";
+import { ensureUniqueJobSlug, prisma } from "@sheba/db";
 import { fetchJobsFromApi, type FieldMap } from "./lib/fetchJobsFromApi.js";
 import { enrichJobRow, type RawJobRow } from "./lib/jobEnrichment.js";
+import { announceJobOnTelegram, assignSlugIfMissing } from "./lib/jobPublish.js";
 import { fetchAfriworkJobsMapped } from "./providers/afriworkJobs.js";
 import { fetchEffoysiraJobsMapped } from "./providers/effoysiraJobs.js";
 import { fetchEthiojobsJobsMapped } from "./providers/ethiojobsJobs.js";
@@ -142,14 +143,16 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
       const siteLabel = siteLabelForProvider(sourcePrefix);
       const existing = await prisma.job.findFirst({
         where: { canonicalKey: enriched.canonicalKey },
-        select: { id: true, scrapedFrom: true },
+        select: { id: true, title: true, company: true, scrapedFrom: true, slug: true, telegramPostedAt: true },
       });
       if (existing) {
         const scrapedFrom = mergeScrapedFrom(existing.scrapedFrom, siteLabel);
+        const slug = existing.slug || (await assignSlugIfMissing(existing));
         await prisma.job.update({
           where: { id: existing.id },
           data: {
           title: enriched.title,
+          slug,
           normalizedTitle: enriched.normalizedTitle,
           company: enriched.company,
           normalizedCompany: enriched.normalizedCompany,
@@ -174,8 +177,10 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
         },
         });
       } else {
-        await prisma.job.create({
+        const slug = await ensureUniqueJobSlug(prisma, enriched.title, enriched.company);
+        const created = await prisma.job.create({
           data: {
+          slug,
           title: enriched.title,
           normalizedTitle: enriched.normalizedTitle,
           company: enriched.company,
@@ -201,6 +206,7 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string) {
           postedAt: enriched.postedAt,
         },
         });
+        await announceJobOnTelegram(created, true);
       }
       console.log("[website] upsert", enriched.title.slice(0, 70));
     } catch (err) {
@@ -268,14 +274,16 @@ async function runGenericApiScraper() {
       }
       const existing = await prisma.job.findFirst({
         where: { canonicalKey: enriched.canonicalKey },
-        select: { id: true, scrapedFrom: true },
+        select: { id: true, title: true, company: true, scrapedFrom: true, slug: true, telegramPostedAt: true },
       });
       if (existing) {
         const scrapedFrom = mergeScrapedFrom(existing.scrapedFrom, genericSiteLabel);
+        const slug = existing.slug || (await assignSlugIfMissing(existing));
         await prisma.job.update({
           where: { id: existing.id },
           data: {
           title: enriched.title,
+          slug,
           normalizedTitle: enriched.normalizedTitle,
           company: enriched.company,
           normalizedCompany: enriched.normalizedCompany,
@@ -300,8 +308,10 @@ async function runGenericApiScraper() {
         },
         });
       } else {
-        await prisma.job.create({
+        const slug = await ensureUniqueJobSlug(prisma, enriched.title, enriched.company);
+        const created = await prisma.job.create({
           data: {
+          slug,
           title: enriched.title,
           normalizedTitle: enriched.normalizedTitle,
           company: enriched.company,
@@ -327,6 +337,7 @@ async function runGenericApiScraper() {
           postedAt: enriched.postedAt,
         },
         });
+        await announceJobOnTelegram(created, true);
       }
       console.log("[website] upsert", enriched.title);
     } catch (err) {
