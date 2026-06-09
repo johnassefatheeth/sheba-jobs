@@ -248,9 +248,12 @@ cd apps/scraper
 npm run telegram:post-recent
 ```
 
-Optional: change how many jobs to seed with `TELEGRAM_BACKFILL_LIMIT=10` in `.env`.
+Optional env:
 
-Jobs already posted (`telegramPostedAt` set) are skipped so you can re-run safely.
+- `TELEGRAM_BACKFILL_LIMIT=10` — how many jobs to post per run
+- `TELEGRAM_BACKFILL_MAX_SCAN=500` — max jobs to walk when filling the quota
+
+Already-posted jobs are skipped; failed sends do not count toward the limit, so the command keeps going to older jobs until it posts 10 (or runs out of candidates).
 
 ### 5. Automatic posts for new jobs
 

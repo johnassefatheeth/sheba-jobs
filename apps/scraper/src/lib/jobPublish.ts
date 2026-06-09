@@ -50,46 +50,62 @@ export async function announceJobOnTelegram(job: PersistedJob, isNew: boolean) {
   await markJobPostedToTelegram(job.id);
 }
 
-/** Post the most recent jobs to the Telegram channel (skips ones already posted). */
+/** Post up to `limit` jobs to the channel, walking older jobs when some are already posted or fail. */
 export async function postRecentJobsToTelegram(options?: { limit?: number }) {
-  const limit = options?.limit ?? Number(process.env.TELEGRAM_BACKFILL_LIMIT ?? 10);
+  const target = options?.limit ?? Number(process.env.TELEGRAM_BACKFILL_LIMIT ?? 10);
   if (!telegramBotConfigured()) {
     throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID in apps/scraper/.env");
   }
 
-  const jobs = await prisma.job.findMany({
-    where: { isExpired: false },
-    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-    take: limit,
-  });
+  const pageSize = Math.max(target, 25);
+  const maxScan = Number(process.env.TELEGRAM_BACKFILL_MAX_SCAN ?? 500);
 
   let posted = 0;
   let skipped = 0;
   let failed = 0;
+  let scanned = 0;
+  let offset = 0;
 
-  for (const job of jobs) {
-    if (job.telegramPostedAt) {
-      console.log("[telegram-backfill] skip already posted:", job.title.slice(0, 60));
-      skipped++;
-      continue;
+  while (posted < target && scanned < maxScan) {
+    const jobs = await prisma.job.findMany({
+      where: { isExpired: false },
+      orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
+      skip: offset,
+      take: pageSize,
+    });
+
+    if (jobs.length === 0) break;
+    offset += jobs.length;
+    scanned += jobs.length;
+
+    for (const job of jobs) {
+      if (posted >= target) break;
+
+      if (job.telegramPostedAt) {
+        console.log("[telegram-backfill] skip already posted:", job.title.slice(0, 60));
+        skipped++;
+        continue;
+      }
+
+      const success = await postJobToTelegramChannel(job);
+      if (success) {
+        await markJobPostedToTelegram(job.id);
+        posted++;
+        console.log("[telegram-backfill] posted:", job.title.slice(0, 60));
+      } else {
+        failed++;
+        console.warn("[telegram-backfill] failed:", job.title.slice(0, 60));
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, TELEGRAM_POST_DELAY_MS));
     }
-
-    const success = await postJobToTelegramChannel(job);
-    if (success) {
-      await markJobPostedToTelegram(job.id);
-      posted++;
-      console.log("[telegram-backfill] posted:", job.title.slice(0, 60));
-    } else {
-      failed++;
-      console.warn("[telegram-backfill] failed:", job.title.slice(0, 60));
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, TELEGRAM_POST_DELAY_MS));
   }
 
+  const exhausted = posted < target;
   console.log(
-    `[telegram-backfill] done: ${posted} posted, ${skipped} skipped, ${failed} failed (${jobs.length} fetched)`
+    `[telegram-backfill] done: ${posted}/${target} posted, ${skipped} skipped, ${failed} failed, ${scanned} scanned` +
+      (exhausted ? " (ran out of jobs to try)" : "")
   );
 
-  return { posted, skipped, failed, total: jobs.length };
+  return { posted, skipped, failed, scanned, target, exhausted };
 }

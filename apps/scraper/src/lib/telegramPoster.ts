@@ -29,17 +29,45 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Telegram inline buttons only accept http(s) URLs — not mailto:, tel:, tg:, etc. */
 function normalizeButtonUrl(raw?: string | null): string | null {
   const value = raw?.trim();
   if (!value) return null;
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) {
+    return null;
+  }
+
   const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value.replace(/^\/+/, "")}`;
   try {
     const url = new URL(withScheme);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!url.hostname) return null;
     return url.toString();
   } catch {
     return null;
   }
+}
+
+function parseMailtoEmail(raw?: string | null): string | null {
+  const value = raw?.trim();
+  if (!value || !/^mailto:/i.test(value)) return null;
+
+  try {
+    const email = decodeURIComponent(new URL(value).pathname).trim();
+    return email || null;
+  } catch {
+    const match = value.match(/^mailto:([^?&#]+)/i);
+    return match?.[1]?.trim() || null;
+  }
+}
+
+function resolveTelegramButtonUrl(job: TelegramJob): string | null {
+  if (parseMailtoEmail(job.applyUrl)) {
+    return normalizeButtonUrl(job.sourceUrl);
+  }
+
+  return normalizeButtonUrl(job.applyUrl) ?? normalizeButtonUrl(job.sourceUrl);
 }
 
 /** Preserve structure: sections, bullets, and line breaks for Telegram HTML. */
@@ -111,6 +139,12 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
     lines.push(formatDescriptionSection(job.description));
   }
 
+  const applyEmail = parseMailtoEmail(job.applyUrl);
+  if (applyEmail) {
+    lines.push("");
+    lines.push(`📧 <b>Apply at</b> '<code>${escapeHtml(applyEmail)}</code>'`);
+  }
+
   lines.push("");
   lines.push(`🕐 <i>Posted ${escapeHtml(formatPostedFreshness(job.postedAt))}</i>`);
 
@@ -129,9 +163,10 @@ export async function postJobToTelegramChannel(job: TelegramJob): Promise<boolea
   const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
   if (!token || !channelId) return false;
 
-  const applyUrl = normalizeButtonUrl(job.applyUrl) ?? normalizeButtonUrl(job.sourceUrl);
-  if (!applyUrl) {
-    console.warn("[telegram-poster] skip job without valid apply URL:", job.title.slice(0, 60));
+  const applyEmail = parseMailtoEmail(job.applyUrl);
+  const applyUrl = resolveTelegramButtonUrl(job);
+  if (!applyUrl && !applyEmail) {
+    console.warn("[telegram-poster] skip job without valid apply link:", job.title.slice(0, 60));
     return false;
   }
 
@@ -143,9 +178,13 @@ export async function postJobToTelegramChannel(job: TelegramJob): Promise<boolea
       text: formatTelegramJobMessage(job),
       parse_mode: "HTML",
       disable_web_page_preview: true,
-      reply_markup: {
-        inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
-      },
+      ...(applyUrl
+        ? {
+            reply_markup: {
+              inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
+            },
+          }
+        : {}),
     }),
   });
 
