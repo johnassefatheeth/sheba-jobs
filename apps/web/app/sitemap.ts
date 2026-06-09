@@ -13,8 +13,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let jobs: JobListItem[] = [];
 
   try {
-    const res = await fetch(`${apiBase}/jobs?limit=500`, { next: { revalidate: 3600 } });
-    jobs = res.ok ? await res.json() : [];
+    const res = await fetch(`${apiBase}/jobs?limit=500&legacy=array`, { next: { revalidate: 3600 } });
+    const data = res.ok ? await res.json() : [];
+    jobs = Array.isArray(data) ? data : data.jobs ?? [];
   } catch {
     jobs = [];
   }

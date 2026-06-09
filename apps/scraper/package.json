@@ -1,12 +1,17 @@
 {
-  "name": "sheba-scraper",
+  "name": "@sheba/scraper",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./website": "./src/lib/websiteScrapeRunner.ts"
+  },
   "scripts": {
     "start:telegram": "tsx src/telegramScraper.ts",
     "start:website": "tsx src/websiteScraper.ts",
-    "telegram:session": "tsx src/telegramSessionSetup.ts"
+    "start:website:daemon": "tsx src/websiteScraperDaemon.ts",
+    "telegram:session": "tsx src/telegramSessionSetup.ts",
+    "telegram:post-recent": "tsx src/telegramChannelBackfill.ts"
   },
   "dependencies": {
     "@sheba/db": "file:../../packages/db",

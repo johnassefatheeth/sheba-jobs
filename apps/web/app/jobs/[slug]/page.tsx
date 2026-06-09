@@ -22,7 +22,9 @@ type Job = {
   isExpired?: boolean;
   expiresAt?: string;
   jobType?: string;
+  posterType?: string;
   experienceLevel?: string;
+  educationLevel?: string;
   isRemote?: boolean;
   isInternship?: boolean;
 };
@@ -123,11 +125,14 @@ export default async function JobPage({ params }: { params: { slug: string } }) 
       <div>{job.company} • {job.location}</div>
       <div style={{ marginTop: ".35rem", color: "var(--muted)" }}>
         {job.freshness || "—"}
-        {job.category ? ` • ${job.category}` : ""}
+        {job.category ? ` • Field: ${job.category}` : ""}
+      </div>
+      <div style={{ marginTop: ".25rem", fontSize: ".9rem", color: "var(--muted)" }}>
+        {job.posterType ? `Employer: ${job.posterType}` : ""}
         {job.jobType ? ` • ${job.jobType}` : ""}
         {job.experienceLevel ? ` • ${job.experienceLevel}` : ""}
+        {job.educationLevel ? ` • ${job.educationLevel}` : ""}
         {job.isRemote ? " • Remote" : ""}
-        {job.isInternship ? " • Internship" : ""}
       </div>
       {job.scrapedFrom && (
         <p style={{ marginTop: ".5rem", fontSize: ".9rem", color: "#0f766e" }}>

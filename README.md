@@ -45,12 +45,15 @@ npm run db:push
 
 If `db push` fails with **P1001**, your network may block Supabase (try `ping` / `Test-NetConnection` to the pooler host, another network/VPN off, or a phone hotspot). Encode `@` and `#` in the DB password as `%40` and `%23`.
 
-5. Start API server:
+5. Start API server (also runs the website scraper every 20 minutes by default):
 
 ```bash
 cd apps/api
+npm install
 npm run dev
 ```
+
+Copy website-scraper env vars (`WEBSITE_JOBS_*`, `DATABASE_URL`) into `apps/api/.env`. Disable auto-scrape with `WEBSITE_SCRAPER_ENABLED=false`.
 
 6. Start frontend:
 
@@ -67,7 +70,10 @@ npm install
 npm run telegram:session   # once, to obtain TELEGRAM_SESSION
 npm run start:telegram
 npm run start:website      # needs WEBSITE_JOBS_* in .env
+npm run telegram:post-recent  # seed last 10 jobs to your Telegram channel (needs TELEGRAM_BOT_*)
 ```
+
+New scraped jobs are posted automatically to your Telegram channel when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set.
 
 Deployment
 ----------

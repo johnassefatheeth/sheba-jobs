@@ -21,11 +21,19 @@ cd ../../packages/db && npm run build
 | `HAHU_JOB_DETAIL_URL_TEMPLATE` | `https://www.hahu.jobs/job/{{id}}` | Stable **sourceUrl** for deduping. Change if HaHu’s public job URL pattern differs. |
 | `HAHU_HTTP_USER_AGENT` | (built-in) | Optional custom `User-Agent` header. |
 
-Run:
+Run once:
 
 ```bash
 npm run start:website
 ```
+
+Run on a schedule (every 20 minutes by default) without the API:
+
+```bash
+npm run start:website:daemon
+```
+
+When the **API** is running (`apps/api` `npm run dev`), the same scraper runs automatically every 20 minutes. Already-scraped jobs (same `sourceUrl`, or same job already merged from that site) are skipped to avoid redundant work.
 
 ---
 
@@ -203,3 +211,58 @@ npm run start:telegram
 Each recent text message becomes a row: **title** = first line, **description** = full text, **sourceUrl** = `https://t.me/<channel>/<messageId>`. Tune parsing later for your posting format.
 
 **Compliance:** Only scrape sources you are allowed to use; respect Telegram ToS and rate limits.
+
+---
+
+## Telegram — outbound job channel
+
+Posts jobs from your database to a **public Telegram channel** with a consistent format and an inline **Apply** button (same URL as the website apply link). New jobs are announced automatically when the website scraper creates them, as long as the bot env vars are set.
+
+### 1. Create a bot
+
+1. Open Telegram and message **@BotFather**.
+2. Send `/newbot`, follow the prompts, and copy the **bot token**.
+
+### 2. Create a channel and add the bot
+
+1. Create a new **channel** in Telegram (public or private).
+2. Open channel settings → **Administrators** → add your bot.
+3. Grant **Post messages** permission.
+
+### 3. Configure env
+
+In **`apps/scraper/.env`** (and `apps/api/.env` if the API runs the scraper):
+
+```env
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+# Public channel: @YourChannelName   Private channel: numeric id like -1001234567890
+TELEGRAM_BOT_CHANNEL_ID=@YourChannelName
+```
+
+For a private channel, forward any message from the channel to **@userinfobot** or **@getidsbot** to get the numeric chat id.
+
+### 4. Post the last 10 jobs (one-time seed)
+
+```bash
+cd apps/scraper
+npm run telegram:post-recent
+```
+
+Optional: change how many jobs to seed with `TELEGRAM_BACKFILL_LIMIT=10` in `.env`.
+
+Jobs already posted (`telegramPostedAt` set) are skipped so you can re-run safely.
+
+### 5. Automatic posts for new jobs
+
+No extra step needed. When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set, every **new** job saved by the website scraper (or API scheduler) is posted to the channel once.
+
+### Message format
+
+Each post includes:
+
+- **Job title first** (channel preview line), with emoji styling
+- Company, location, field, and employment tags
+- Full job description inside a **collapsible “read more” block** (Telegram expandable quote)
+- Posted date and source site
+- **✅ Apply Now** inline button → external apply URL
+- Sheba Jobs Ethiopia footer (not the first line)

@@ -20,6 +20,15 @@ body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;color:#0f172a}
 .filters button{background:var(--accent);color:white;padding:.55rem .9rem;border-radius:8px;border:none;cursor:pointer}
 .filters .small-toggle{display:flex;align-items:center;gap:.4rem}
 .job-list{margin-top:1rem}
+.job-stats{display:flex;flex-wrap:wrap;gap:1rem;margin:1rem 0 0.5rem;padding:1rem 1.1rem;background:linear-gradient(135deg,#f0f9ff,#f8fafc);border:1px solid #e0f2fe;border-radius:12px}
+.job-stat{display:flex;flex-direction:column;gap:.15rem;min-width:120px}
+.job-stat-value{font-size:1.5rem;font-weight:700;color:#0f172a;line-height:1.1}
+.job-stat-label{font-size:.85rem;color:var(--muted)}
+.job-stat-sub{font-size:.78rem;color:#0369a1;margin-top:.1rem}
+.job-stat-filtered{padding-left:1rem;border-left:2px solid #bae6fd}
+.results-summary{margin:0 0 .75rem;font-size:.92rem;color:var(--muted)}
+.load-error{color:#b91c1c;margin-bottom:1rem}
+.btn-clear{background:transparent;color:var(--muted);border:none;cursor:pointer;padding:.55rem .5rem}
 
 /* Loading / Skeleton */
 .loading-center{display:flex;flex-direction:column;gap:.75rem;align-items:center;padding:1.5rem}

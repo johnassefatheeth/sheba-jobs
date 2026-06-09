@@ -6,6 +6,13 @@ import {
   formatPostedFreshness,
   prisma,
 } from '@sheba/db';
+import { scheduleWebsiteScraper } from './websiteScraperSchedule.js';
+import {
+  buildJobWhere,
+  getJobMeta,
+  parseJobListQuery,
+  startOfToday,
+} from './jobQuery.js';
 
 dotenv.config();
 
@@ -63,53 +70,46 @@ function withFreshness<T extends { postedAt?: Date | null }>(job: T) {
   };
 }
 
-// GET /jobs with optional filters: search, location, category, limit, offset
-app.get('/jobs', async (req: Request, res: Response) => {
-  const {
-    search,
-    location,
-    category,
-    posterType,
-    jobType,
-    experienceLevel,
-    educationLevel,
-    scrapedFrom,
-    isRemote,
-    isInternship,
-    includeExpired = 'false',
-    limit = '50',
-    offset = '0'
-  } = req.query;
-
-  const where: any = {};
-
-  if (search) {
-    where.OR = [
-      { title: { contains: String(search), mode: 'insensitive' } },
-      { description: { contains: String(search), mode: 'insensitive' } },
-      { company: { contains: String(search), mode: 'insensitive' } }
-    ];
+app.get('/jobs/meta', async (req: Request, res: Response) => {
+  try {
+    const query = parseJobListQuery(req);
+    const meta = await getJobMeta(query);
+    res.json(meta);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
-  if (location) where.normalizedLocation = { contains: String(location).toLowerCase(), mode: 'insensitive' };
-  if (category) where.normalizedCategory = { equals: String(category), mode: 'insensitive' };
-  if (posterType) where.posterType = { equals: String(posterType), mode: 'insensitive' };
-  if (jobType) where.jobType = { equals: String(jobType), mode: 'insensitive' };
-  if (experienceLevel) where.experienceLevel = { equals: String(experienceLevel), mode: 'insensitive' };
-  if (educationLevel) where.educationLevel = { equals: String(educationLevel), mode: 'insensitive' };
-  if (scrapedFrom) where.scrapedFrom = { contains: String(scrapedFrom), mode: 'insensitive' };
-  if (isRemote !== undefined) where.isRemote = String(isRemote).toLowerCase() === 'true';
-  if (isInternship !== undefined) where.isInternship = String(isInternship).toLowerCase() === 'true';
-  if (String(includeExpired).toLowerCase() !== 'true') where.isExpired = false;
+});
+
+app.get('/jobs', async (req: Request, res: Response) => {
+  const query = parseJobListQuery(req);
+  const { limit = '50', offset = '0', legacy } = req.query;
+  const where = buildJobWhere(query);
+  const today = startOfToday();
 
   try {
-    const jobs = await prisma.job.findMany({
-      where,
-      orderBy: [{ postedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
-      take: Number(limit),
-      skip: Number(offset)
-    });
+    const [jobs, total, postedToday] = await Promise.all([
+      prisma.job.findMany({
+        where,
+        orderBy: [{ postedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: Number(limit),
+        skip: Number(offset),
+      }),
+      prisma.job.count({ where }),
+      prisma.job.count({ where: { ...where, postedAt: { gte: today } } }),
+    ]);
 
-    res.json(jobs.map(withFreshness));
+    const payload = jobs.map(withFreshness);
+
+    if (String(legacy).toLowerCase() === 'array') {
+      return res.json(payload);
+    }
+
+    res.json({
+      jobs: payload,
+      total,
+      postedToday,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -118,6 +118,8 @@ app.get('/jobs', async (req: Request, res: Response) => {
 
 app.get('/jobs/:slugOrId', async (req: Request, res: Response) => {
   const { slugOrId } = req.params;
+  if (slugOrId === 'meta') return res.status(404).json({ error: 'Not found' });
+
   try {
     const job =
       (await prisma.job.findUnique({ where: { slug: slugOrId } })) ??
@@ -134,6 +136,7 @@ app.get('/jobs/:slugOrId', async (req: Request, res: Response) => {
 async function start() {
   await backfillMissingSlugs();
   scheduleExpirationChecks();
+  scheduleWebsiteScraper();
   app.listen(PORT, () => {
     console.log(`Sheba API running on port ${PORT}`);
   });
