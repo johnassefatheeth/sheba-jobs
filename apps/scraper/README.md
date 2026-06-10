@@ -227,7 +227,7 @@ Posts jobs from your database to a **public Telegram channel** with a consistent
 
 1. Create a new **channel** in Telegram (public or private).
 2. Open channel settings → **Administrators** → add your bot.
-3. Grant **Post messages** permission.
+3. Grant **Post messages** and **Change channel info** (needed to set the channel description).
 
 ### 3. Configure env
 
@@ -241,7 +241,31 @@ TELEGRAM_BOT_CHANNEL_ID=@YourChannelName
 
 For a private channel, forward any message from the channel to **@userinfobot** or **@getidsbot** to get the numeric chat id.
 
-### 4. Post the last 10 jobs (one-time seed)
+### 4. Set the channel description (optional)
+
+The bot can set the channel **About** text (what subscribers see before joining) via the Telegram Bot API.
+
+**One-time** (uses a default description, or `TELEGRAM_CHANNEL_DESCRIPTION` from `.env`):
+
+```bash
+cd apps/scraper
+npm run telegram:set-channel-info
+```
+
+Custom text inline (max 255 characters):
+
+```bash
+npm run telegram:set-channel-info -- "Your custom about text"
+```
+
+**Automatic** on each scrape run:
+
+```env
+TELEGRAM_SYNC_CHANNEL_INFO=true
+TELEGRAM_CHANNEL_DESCRIPTION="Your custom about text (optional — default is EN + Amharic)"
+```
+
+### 5. Post the last 10 jobs (one-time seed)
 
 ```bash
 cd apps/scraper
@@ -255,7 +279,7 @@ Optional env:
 
 Already-posted jobs are skipped; failed sends do not count toward the limit, so the command keeps going to older jobs until it posts 10 (or runs out of candidates).
 
-### 5. Automatic posts for new jobs
+### 6. Automatic posts for new jobs
 
 No extra step needed. When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set, every **new** job saved by the website scraper (or API scheduler) is posted to the channel once.
 

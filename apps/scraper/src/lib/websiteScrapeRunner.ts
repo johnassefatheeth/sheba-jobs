@@ -3,6 +3,7 @@ import { ensureUniqueJobSlug, prisma } from "@sheba/db";
 import { fetchJobsFromApi, type FieldMap } from "./fetchJobsFromApi.js";
 import { enrichJobRow, type RawJobRow } from "./jobEnrichment.js";
 import { announceJobOnTelegram, assignSlugIfMissing } from "./jobPublish.js";
+import { syncTelegramChannelInfoIfEnabled } from "./telegramPoster.js";
 import { fetchAfriworkJobsMapped } from "../providers/afriworkJobs.js";
 import { fetchEffoysiraJobsMapped } from "../providers/effoysiraJobs.js";
 import { fetchEthiojobsJobsMapped } from "../providers/ethiojobsJobs.js";
@@ -228,6 +229,8 @@ function logPersistStats(provider: string, fetched: number, stats: PersistStats)
  * Other modes: `hahu`, `afriwork`, `ethiojobs`, `effoysira`, `generic`.
  */
 export async function runWebsiteScraper(): Promise<void> {
+  await syncTelegramChannelInfoIfEnabled();
+
   const started = Date.now();
   console.log("[website] scrape run started", new Date().toISOString());
 

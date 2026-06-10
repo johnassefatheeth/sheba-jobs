@@ -202,6 +202,83 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
   return lines.join("\n");
 }
 
+const TELEGRAM_DESCRIPTION_MAX = 255;
+
+type TelegramApiResult = { ok?: boolean; description?: string; result?: unknown };
+
+function telegramBotConfig(): { token: string; channelId: string } | null {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
+  if (!token || !channelId) return null;
+  return { token, channelId };
+}
+
+async function callTelegramBotApi(method: string, body: Record<string, unknown>): Promise<TelegramApiResult> {
+  const config = telegramBotConfig();
+  if (!config) {
+    return { ok: false, description: "TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_CHANNEL_ID not set" };
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  return (await response.json()) as TelegramApiResult;
+}
+
+const DEFAULT_CHANNEL_DESCRIPTION_EN =
+  "Sheba Jobs — Sheba Labs' first publicly available product. We fetch jobs from multiple platforms so you see every opportunity out there.";
+
+const DEFAULT_CHANNEL_DESCRIPTION_AM =
+  "ሼባ ጆብስ — የሼባ ላብስ የመጀመሪያ ለህዝብ የቀረበ ምርት። ከብዙ መድረኮች የስራ ዕድሎችን በማምጣት ያሉትን ሁሉንም ዕድሎች ያሳያል።";
+
+/** Default channel “About” text (max 255 chars per Telegram). */
+export function buildDefaultChannelDescription(): string {
+  const custom = process.env.TELEGRAM_CHANNEL_DESCRIPTION?.trim();
+  if (custom) return custom.slice(0, TELEGRAM_DESCRIPTION_MAX);
+
+  const text = `${DEFAULT_CHANNEL_DESCRIPTION_EN}\n\n${DEFAULT_CHANNEL_DESCRIPTION_AM}`;
+  if (text.length <= TELEGRAM_DESCRIPTION_MAX) return text;
+
+  return text.slice(0, TELEGRAM_DESCRIPTION_MAX - 1).trimEnd() + "…";
+}
+
+/** Set the channel description (requires bot admin with “Change channel info”). */
+export async function setTelegramChannelDescription(description?: string): Promise<boolean> {
+  const config = telegramBotConfig();
+  if (!config) {
+    console.warn("[telegram-poster] cannot set channel description: bot not configured");
+    return false;
+  }
+
+  const text = (description ?? buildDefaultChannelDescription()).trim().slice(0, TELEGRAM_DESCRIPTION_MAX);
+  if (!text) {
+    console.warn("[telegram-poster] channel description is empty");
+    return false;
+  }
+
+  const payload = await callTelegramBotApi("setChatDescription", {
+    chat_id: config.channelId,
+    description: text,
+  });
+
+  if (!payload.ok) {
+    console.error("[telegram-poster] setChatDescription failed:", payload.description ?? "unknown error");
+    return false;
+  }
+
+  console.log("[telegram-poster] channel description updated");
+  return true;
+}
+
+/** Sync channel description when TELEGRAM_SYNC_CHANNEL_INFO=true. */
+export async function syncTelegramChannelInfoIfEnabled(): Promise<void> {
+  if (process.env.TELEGRAM_SYNC_CHANNEL_INFO?.trim().toLowerCase() !== "true") return;
+  await setTelegramChannelDescription();
+}
+
 function isTelegramPhotoUrl(url?: string | null): boolean {
   if (!url?.trim()) return false;
   try {
@@ -216,9 +293,9 @@ export async function postJobToTelegramChannel(
   job: TelegramJob,
   options?: { allowPhoto?: boolean }
 ): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
-  if (!token || !channelId) return false;
+  const config = telegramBotConfig();
+  if (!config) return false;
+  const { token, channelId } = config;
 
   const applyEmail = parseMailtoEmail(job.applyUrl);
   const applyUrl = resolveTelegramButtonUrl(job);

@@ -71,6 +71,7 @@ npm run telegram:session   # once, to obtain TELEGRAM_SESSION
 npm run start:telegram
 npm run start:website      # needs WEBSITE_JOBS_* in .env
 npm run telegram:post-recent  # seed last 10 jobs to your Telegram channel (needs TELEGRAM_BOT_*)
+npm run telegram:set-channel-info  # set channel About/description (bot needs “Change channel info” admin right)
 ```
 
 New scraped jobs are posted automatically to your Telegram channel when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set.

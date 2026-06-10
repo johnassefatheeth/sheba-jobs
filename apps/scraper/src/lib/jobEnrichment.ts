@@ -436,13 +436,24 @@ function buildCanonicalKey(normalizedTitle: string | null, normalizedCompany: st
   return createHash("sha256").update(payload).digest("hex").slice(0, 40);
 }
 
-export function normalizeLogoUrl(raw?: string | null): string | null {
+const DEFAULT_LOGO_CDN_BASE = "https://ethiojobs.net";
+
+export function normalizeLogoUrl(
+  raw?: string | null,
+  options?: { cdnBase?: string }
+): string | null {
   if (!raw?.trim()) return null;
   const value = raw.trim();
+  const cdnBase = (options?.cdnBase ?? process.env.COMPANY_LOGO_CDN_BASE ?? DEFAULT_LOGO_CDN_BASE).replace(
+    /\/$/,
+    ""
+  );
+
   if (value.startsWith("//")) return `https:${value}`;
   if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith("/")) return null;
-  return `https://${value.replace(/^\/+/, "")}`;
+  if (value.startsWith("/")) return `${cdnBase}${value}`;
+  if (/^(company-logo|uploads|storage|media)\//i.test(value)) return `${cdnBase}/${value}`;
+  return null;
 }
 
 export function enrichJobRow(row: RawJobRow): EnrichedJobRow {
