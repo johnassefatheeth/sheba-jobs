@@ -17,7 +17,7 @@ type EthiojobsJob = {
   application_method?: string | null;
   application_email?: string | null;
   career_page_link?: string | null;
-  company?: { name?: string | null } | null;
+  company?: { name?: string | null; logo?: string | null; image?: string | null } | null;
   catalogs?: Array<{ name?: string | null }> | null;
 };
 
@@ -33,7 +33,13 @@ export type EthiojobsMappedRow = {
   rawSource: string | null;
   expiresAt?: Date | null;
   isExpired?: boolean;
+  companyLogoUrl?: string | null;
 };
+
+function pickCompanyLogo(company?: EthiojobsJob["company"]): string | null {
+  const logo = company?.logo?.trim() || company?.image?.trim();
+  return logo || null;
+}
 
 export type FetchEthiojobsOptions = {
   baseUrl?: string;
@@ -62,6 +68,7 @@ function mapJob(j: EthiojobsJob, detailTemplate: string): EthiojobsMappedRow {
     rawSource: j.application_method ?? "ethiojobs",
     expiresAt: j.date_expiry ? new Date(j.date_expiry) : null,
     isExpired: j.date_expiry ? new Date(j.date_expiry).getTime() < Date.now() : false,
+    companyLogoUrl: pickCompanyLogo(j.company),
   };
 }
 

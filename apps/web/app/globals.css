@@ -11,6 +11,11 @@ body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;color:#0f172a}
 .site-header{background:#0f172a;color:#fff;padding:.75rem 0}
 .job-card{border:1px solid var(--card-border);padding:1rem;border-radius:10px;margin-bottom:1rem;background:#fff;transition:transform .18s ease,box-shadow .18s ease}
 .job-card:hover{transform:translateY(-4px);box-shadow:0 8px 20px rgba(2,6,23,0.08)}
+.job-card-header{display:flex;gap:.85rem;align-items:flex-start}
+.job-card-main{flex:1;min-width:0}
+.job-company-logo{width:44px;height:44px;border-radius:8px;object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0;flex-shrink:0}
+.job-company-logo-lg{width:64px;height:64px;border-radius:10px}
+.job-detail-header{display:flex;gap:1rem;align-items:center;margin-bottom:.5rem}
 .job-title{font-weight:700;color:#0b1220;text-decoration:none}
 .filters{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;align-items:center}
 .filters .search{flex:1;min-width:180px}

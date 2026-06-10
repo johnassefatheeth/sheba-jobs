@@ -16,6 +16,7 @@ type TelegramJob = {
   isRemote?: boolean;
   isInternship?: boolean;
   scrapedFrom?: string | null;
+  companyLogoUrl?: string | null;
 };
 
 const SECTION_HEADER =
@@ -116,6 +117,49 @@ function formatDescriptionSection(description: string): string {
   return `\n\n📝 <b>Description</b>\n<blockquote expandable>${formatted}</blockquote>`;
 }
 
+/** Shorter caption for sendPhoto (Telegram limit: 1024 chars). */
+export function formatTelegramPhotoCaption(job: TelegramJob): string {
+  const lines: string[] = [`<b>💼 ${escapeHtml(job.title.trim())}</b>`, ""];
+
+  if (job.company?.trim()) {
+    lines.push(`🏢 <b>Company:</b> ${escapeHtml(job.company.trim())}`);
+  }
+  if (job.location?.trim()) {
+    lines.push(`📍 <b>Location:</b> ${escapeHtml(job.location.trim())}`);
+  }
+  if (job.category?.trim()) {
+    lines.push(`📂 <b>Field:</b> ${escapeHtml(job.category.trim())}`);
+  }
+
+  const tagLine = formatTagLine(job);
+  if (tagLine) {
+    lines.push("");
+    lines.push(tagLine);
+  }
+
+  const applyEmail = parseMailtoEmail(job.applyUrl);
+  if (applyEmail) {
+    lines.push("");
+    lines.push(`📧 <b>Apply at</b> '<code>${escapeHtml(applyEmail)}</code>'`);
+  }
+
+  lines.push("");
+  lines.push(`🕐 <i>Posted ${escapeHtml(formatPostedFreshness(job.postedAt))}</i>`);
+
+  if (job.scrapedFrom?.trim()) {
+    lines.push(`🔗 <i>Source: ${escapeHtml(job.scrapedFrom.trim())}</i>`);
+  }
+
+  lines.push("");
+  lines.push("🇪🇹 <i>Sheba Jobs Ethiopia</i>");
+
+  let caption = lines.join("\n");
+  if (caption.length > 1020) {
+    caption = `${caption.slice(0, 1017).trimEnd()}…`;
+  }
+  return caption;
+}
+
 export function formatTelegramJobMessage(job: TelegramJob): string {
   const lines: string[] = [`<b>💼 ${escapeHtml(job.title.trim())}</b>`, ""];
 
@@ -158,7 +202,20 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
   return lines.join("\n");
 }
 
-export async function postJobToTelegramChannel(job: TelegramJob): Promise<boolean> {
+function isTelegramPhotoUrl(url?: string | null): boolean {
+  if (!url?.trim()) return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export async function postJobToTelegramChannel(
+  job: TelegramJob,
+  options?: { allowPhoto?: boolean }
+): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
   if (!token || !channelId) return false;
@@ -170,26 +227,46 @@ export async function postJobToTelegramChannel(job: TelegramJob): Promise<boolea
     return false;
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const replyMarkup = applyUrl
+    ? {
+        reply_markup: {
+          inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
+        },
+      }
+    : {};
+
+  const allowPhoto = options?.allowPhoto !== false;
+  const logoUrl =
+    allowPhoto && isTelegramPhotoUrl(job.companyLogoUrl) ? job.companyLogoUrl!.trim() : null;
+  const endpoint = logoUrl ? "sendPhoto" : "sendMessage";
+  const body = logoUrl
+    ? {
+        chat_id: channelId,
+        photo: logoUrl,
+        caption: formatTelegramPhotoCaption(job),
+        parse_mode: "HTML",
+        ...replyMarkup,
+      }
+    : {
+        chat_id: channelId,
+        text: formatTelegramJobMessage(job),
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...replyMarkup,
+      };
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: channelId,
-      text: formatTelegramJobMessage(job),
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-      ...(applyUrl
-        ? {
-            reply_markup: {
-              inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
-            },
-          }
-        : {}),
-    }),
+    body: JSON.stringify(body),
   });
 
   const payload = (await response.json()) as { ok?: boolean; description?: string };
   if (!response.ok || !payload.ok) {
+    if (logoUrl) {
+      console.warn("[telegram-poster] photo send failed, retrying as text:", payload.description ?? response.statusText);
+      return postJobToTelegramChannel(job, { allowPhoto: false });
+    }
     console.error("[telegram-poster] send failed:", payload.description ?? response.statusText);
     return false;
   }

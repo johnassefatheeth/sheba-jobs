@@ -12,6 +12,7 @@ type Job = {
   slug?: string | null;
   title: string;
   company?: string;
+  companyLogoUrl?: string;
   location?: string;
   category?: string;
   description?: string;
@@ -90,7 +91,11 @@ function buildJobPostingJsonLd(job: Job, canonicalUrl: string) {
     datePosted: job.postedAt,
     validThrough: job.expiresAt,
     hiringOrganization: job.company
-      ? { "@type": "Organization", name: job.company }
+      ? {
+          "@type": "Organization",
+          name: job.company,
+          ...(job.companyLogoUrl ? { logo: job.companyLogoUrl } : {}),
+        }
       : undefined,
     jobLocation: job.location
       ? { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: job.location } }
@@ -121,8 +126,16 @@ export default async function JobPage({ params }: { params: { slug: string } }) 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJobPostingJsonLd(job, canonicalUrl)) }}
       />
-      <h2>{job.title}</h2>
-      <div>{job.company} • {job.location}</div>
+      <div className="job-detail-header">
+        {job.companyLogoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={job.companyLogoUrl} alt="" className="job-company-logo job-company-logo-lg" />
+        ) : null}
+        <div>
+          <h2>{job.title}</h2>
+          <div>{job.company} • {job.location}</div>
+        </div>
+      </div>
       <div style={{ marginTop: ".35rem", color: "var(--muted)" }}>
         {job.freshness || "—"}
         {job.category ? ` • Field: ${job.category}` : ""}

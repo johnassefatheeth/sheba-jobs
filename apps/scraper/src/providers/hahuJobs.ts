@@ -5,22 +5,7 @@
 
 const DEFAULT_GRAPHQL_URL = "https://graph.aggregator.hahu.jobs/v1/graphql";
 
-/** GraphQL document from the site's listing query (trimmed to fields we persist). */
-const HAHU_JOBS_QUERY = `
-query HahuJobList(
-  $args: search_jobs_args!
-  $filter: jobs_bool_exp
-  $limit: Int
-  $offset: Int
-  $orderBy: [jobs_order_by!]
-) {
-  jobs: search_jobs(
-    where: $filter
-    order_by: $orderBy
-    args: $args
-    offset: $offset
-    limit: $limit
-  ) {
+const HAHU_JOB_FIELDS = `
     id
     title
     summary
@@ -43,6 +28,7 @@ query HahuJobList(
     }
     entity {
       name
+      {{entityLogo}}
     }
     sub_sector {
       name
@@ -54,9 +40,30 @@ query HahuJobList(
       address
       name
     }
+`;
+
+function buildHahuJobsQuery(includeEntityLogo: boolean): string {
+  const fields = HAHU_JOB_FIELDS.replace("{{entityLogo}}", includeEntityLogo ? "logo" : "");
+  return `
+query HahuJobList(
+  $args: search_jobs_args!
+  $filter: jobs_bool_exp
+  $limit: Int
+  $offset: Int
+  $orderBy: [jobs_order_by!]
+) {
+  jobs: search_jobs(
+    where: $filter
+    order_by: $orderBy
+    args: $args
+    offset: $offset
+    limit: $limit
+  ) {
+${fields}
   }
 }
 `.trim();
+}
 
 export type HahuGraphqlJob = {
   id: string;
@@ -74,7 +81,7 @@ export type HahuGraphqlJob = {
   job_cities?: Array<{
     city?: { name?: string | null; region?: { name?: string | null } | null } | null;
   }> | null;
-  entity?: { name?: string | null } | null;
+  entity?: { name?: string | null; logo?: string | null } | null;
   sub_sector?: { name?: string | null; sector?: { name?: string | null } | null } | null;
   area?: { address?: string | null; name?: string | null } | null;
 };
@@ -91,6 +98,7 @@ export type HahuMappedRow = {
   rawSource: string | null;
   expiresAt?: Date | null;
   isExpired?: boolean;
+  companyLogoUrl?: string | null;
 };
 
 function formatLocation(j: HahuGraphqlJob): string | null {
@@ -126,6 +134,7 @@ function mapJob(j: HahuGraphqlJob, detailTemplate: string): HahuMappedRow {
     rawSource: j.source ?? null,
     expiresAt: j.deadline ? new Date(j.deadline) : null,
     isExpired: Boolean(j.expired),
+    companyLogoUrl: j.entity?.logo?.trim() || null,
   };
 }
 
@@ -138,6 +147,48 @@ export type FetchHahuOptions = {
 
 /** Public job URL pattern — override with `HAHU_JOB_DETAIL_URL_TEMPLATE` if HaHu changes routes. */
 const DEFAULT_DETAIL_TEMPLATE = "https://www.hahu.jobs/job/{{id}}";
+
+async function fetchHahuJobsRaw(
+  graphqlUrl: string,
+  gqlVariables: Record<string, unknown>,
+  includeEntityLogo: boolean
+): Promise<HahuGraphqlJob[]> {
+  const res = await fetch(graphqlUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "*/*",
+      origin: "https://www.hahu.jobs",
+      referer: "https://www.hahu.jobs/",
+      "user-agent":
+        process.env.HAHU_HTTP_USER_AGENT?.trim() ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
+    body: JSON.stringify({ query: buildHahuJobsQuery(includeEntityLogo), variables: gqlVariables }),
+  });
+
+  const json = (await res.json()) as {
+    errors?: Array<{ message: string }>;
+    data?: { jobs?: HahuGraphqlJob[] };
+  };
+
+  if (!res.ok) {
+    throw new Error(`HaHu GraphQL HTTP ${res.status}: ${JSON.stringify(json).slice(0, 500)}`);
+  }
+  if (json.errors?.length) {
+    const message = json.errors.map((e) => e.message).join("; ");
+    if (includeEntityLogo && /logo/i.test(message)) {
+      return fetchHahuJobsRaw(graphqlUrl, gqlVariables, false);
+    }
+    throw new Error(`HaHu GraphQL errors: ${message}`);
+  }
+
+  const jobs = json.data?.jobs;
+  if (!Array.isArray(jobs)) {
+    throw new Error("HaHu GraphQL: missing data.jobs array");
+  }
+  return jobs;
+}
 
 export async function fetchHahuJobsMapped(options: FetchHahuOptions = {}): Promise<HahuMappedRow[]> {
   const graphqlUrl = options.graphqlUrl ?? process.env.HAHU_GRAPHQL_URL?.trim() ?? DEFAULT_GRAPHQL_URL;
@@ -158,41 +209,6 @@ export async function fetchHahuJobsMapped(options: FetchHahuOptions = {}): Promi
     orderBy: [{ approved_on: "desc" }],
   };
 
-  const body = {
-    query: HAHU_JOBS_QUERY,
-    variables: gqlVariables,
-  };
-
-  const res = await fetch(graphqlUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "*/*",
-      origin: "https://www.hahu.jobs",
-      referer: "https://www.hahu.jobs/",
-      "user-agent":
-        process.env.HAHU_HTTP_USER_AGENT?.trim() ||
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const json = (await res.json()) as {
-    errors?: Array<{ message: string }>;
-    data?: { jobs?: HahuGraphqlJob[] };
-  };
-
-  if (!res.ok) {
-    throw new Error(`HaHu GraphQL HTTP ${res.status}: ${JSON.stringify(json).slice(0, 500)}`);
-  }
-  if (json.errors?.length) {
-    throw new Error(`HaHu GraphQL errors: ${json.errors.map((e) => e.message).join("; ")}`);
-  }
-
-  const jobs = json.data?.jobs;
-  if (!Array.isArray(jobs)) {
-    throw new Error("HaHu GraphQL: missing data.jobs array");
-  }
-
+  const jobs = await fetchHahuJobsRaw(graphqlUrl, gqlVariables, true);
   return jobs.map((j) => mapJob(j, detailTemplate));
 }

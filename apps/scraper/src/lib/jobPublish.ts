@@ -19,6 +19,7 @@ type PersistedJob = {
   isInternship?: boolean;
   scrapedFrom?: string | null;
   telegramPostedAt?: Date | null;
+  companyLogoUrl?: string | null;
 };
 
 const TELEGRAM_POST_DELAY_MS = 1100;

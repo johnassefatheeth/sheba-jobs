@@ -5,9 +5,11 @@
 
 const DEFAULT_GRAPHQL_URL = "https://api.afriworket.com/v1/graphql";
 
-const AFRIWORK_QUERY = `
+function buildAfriworkQuery(pageSize: number, includeEntityLogo: boolean): string {
+  const logoField = includeEntityLogo ? " logo" : "";
+  return `
 query GetAllJobs($offset: Int!, $whereCondition: jobs_bool_exp!, $orderCondition: [jobs_order_by!]) {
-  jobs(order_by: $orderCondition, offset: $offset, limit: 20, where: $whereCondition) {
+  jobs(order_by: $orderCondition, offset: $offset, limit: ${pageSize}, where: $whereCondition) {
     id
     title
     created_at
@@ -27,10 +29,11 @@ query GetAllJobs($offset: Int!, $whereCondition: jobs_bool_exp!, $orderCondition
     compensation_type
     compensation_currency
     experience_level
-    entity { type name }
+    entity { type name${logoField} }
   }
 }
 `.trim();
+}
 
 type AfriworkJob = {
   id: string;
@@ -46,7 +49,7 @@ type AfriworkJob = {
   compensation_type?: string | null;
   compensation_currency?: string | null;
   experience_level?: string | null;
-  entity?: { type?: string | null; name?: string | null } | null;
+  entity?: { type?: string | null; name?: string | null; logo?: string | null } | null;
 };
 
 export type AfriworkMappedRow = {
@@ -61,6 +64,8 @@ export type AfriworkMappedRow = {
   rawSource: string | null;
   expiresAt?: Date | null;
   isExpired?: boolean;
+  posterTypeHint?: string | null;
+  companyLogoUrl?: string | null;
 };
 
 function mapJob(j: AfriworkJob, detailTemplate: string): AfriworkMappedRow {
@@ -82,6 +87,8 @@ function mapJob(j: AfriworkJob, detailTemplate: string): AfriworkMappedRow {
     rawSource: j.approval_status ?? "PUBLISHED",
     expiresAt: j.deadline ? new Date(j.deadline) : null,
     isExpired: j.deadline ? new Date(j.deadline).getTime() < Date.now() : false,
+    posterTypeHint: j.entity?.type?.trim() || null,
+    companyLogoUrl: j.entity?.logo?.trim() || null,
   };
 }
 
@@ -122,11 +129,12 @@ export async function fetchAfriworkJobsMapped(
   const orderCondition = { latest_activity_at: "desc" };
   const whereCondition = { _and: [{ approval_status: { _in: ["PUBLISHED", "REFRESHED"] } }] };
 
+  let includeEntityLogo = true;
+
   while (all.length < maxJobs) {
     const body = {
       operationName: "GetAllJobs",
-      // Keep the same operation shape but inject page size for this request.
-      query: AFRIWORK_QUERY.replace("limit: 20", `limit: ${pageSize}`),
+      query: buildAfriworkQuery(pageSize, includeEntityLogo),
       variables: {
         offset,
         orderCondition,
@@ -161,7 +169,12 @@ export async function fetchAfriworkJobsMapped(
       throw new Error(`Afriwork GraphQL HTTP ${res.status}: ${JSON.stringify(json).slice(0, 500)}`);
     }
     if (json.errors?.length) {
-      throw new Error(`Afriwork GraphQL errors: ${json.errors.map((e) => e.message).join("; ")}`);
+      const message = json.errors.map((e) => e.message).join("; ");
+      if (includeEntityLogo && /logo/i.test(message)) {
+        includeEntityLogo = false;
+        continue;
+      }
+      throw new Error(`Afriwork GraphQL errors: ${message}`);
     }
     const jobs = json.data?.jobs;
     if (!Array.isArray(jobs)) {

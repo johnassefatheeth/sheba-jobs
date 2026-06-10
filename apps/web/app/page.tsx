@@ -7,6 +7,7 @@ type Job = {
   slug?: string
   title: string
   company?: string
+  companyLogoUrl?: string
   location?: string
   category?: string
   postedAt?: string
@@ -353,6 +354,17 @@ export default function Page() {
             {jobs.length === 0 && <p style={{color: 'var(--muted)'}}>No jobs found.</p>}
             {jobs.map(job => (
               <div key={job.id} className="job-card">
+                <div className="job-card-header">
+                  {job.companyLogoUrl ? (
+                    <img
+                      src={job.companyLogoUrl}
+                      alt=""
+                      className="job-company-logo"
+                      loading="lazy"
+                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
+                  ) : null}
+                  <div className="job-card-main">
                 <a href={`/jobs/${job.slug || job.id}`} className="job-title">{job.title}</a>
                 <div style={{marginTop:'.25rem',color:'var(--muted)'}}>{job.company || '—'} • {job.location || '—'} • {job.category || '—'}</div>
                 {job.scrapedFrom && (
@@ -369,6 +381,8 @@ export default function Page() {
                 </div>
                 <div style={{marginTop:'.5rem',fontSize:'.9rem',color:'#475569'}}>
                   Posted {displayFreshness(job)}
+                </div>
+                  </div>
                 </div>
               </div>
             ))}

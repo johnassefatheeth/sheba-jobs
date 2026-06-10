@@ -12,6 +12,9 @@ export type RawJobRow = {
   rawSource?: string | null;
   expiresAt?: Date | null;
   isExpired?: boolean;
+  /** Provider-native employer sector hint (e.g. Afriwork entity.type). */
+  posterTypeHint?: string | null;
+  companyLogoUrl?: string | null;
 };
 
 export type EnrichedJobRow = RawJobRow & {
@@ -28,6 +31,7 @@ export type EnrichedJobRow = RawJobRow & {
   canonicalKey: string;
   expiresAt: Date | null;
   isExpired: boolean;
+  companyLogoUrl: string | null;
 };
 
 const COMPANY_SUFFIX_RE =
@@ -60,7 +64,8 @@ const FIELD_RULES: { label: string; re: RegExp; weight: number }[] = [
   { label: "Real Estate & Property", re: /\b(real estate|property|facility|estate agent|leasing)\b/i, weight: 4 },
   { label: "Security & Safety", re: /\b(security guard|safety officer|hse|occupational health)\b/i, weight: 4 },
   { label: "Customer Service & Call Center", re: /\b(customer service|call center|help desk|client support)\b/i, weight: 4 },
-  { label: "NGO & Development", re: /\b(program officer|project coordinator|monitoring|evaluation|mel officer|development worker|humanitarian)\b/i, weight: 3 },
+  { label: "NGO & Development", re: /\b(program coordinator|program officer|project coordinator|monitoring|evaluation|mel officer|development worker|humanitarian)\b/i, weight: 5 },
+  { label: "Human Resources", re: /\b(hr manager|hr and|human resources?)\b/i, weight: 5 },
   { label: "Research & Sciences", re: /\b(research|scientist|laboratory|lab analyst|biologist|chemist)\b/i, weight: 3 },
   { label: "Media & Journalism", re: /\b(journalist|reporter|editor|media|broadcast|videographer|photographer)\b/i, weight: 4 },
   { label: "Retail & Merchandising", re: /\b(retail|merchandiser|shop attendant|cashier|store manager)\b/i, weight: 4 },
@@ -128,6 +133,22 @@ const SOURCE_CATEGORY_MAP: Record<string, string> = {
   consulting: "Consulting & Tender",
 };
 
+/** Short map keys must match whole words — avoids "Administration" → Software & IT via "it". */
+const SOURCE_CATEGORY_WORD_KEYS = new Set(["it", "hr", "admin", "bank", "ngo", "sales", "legal", "energy", "health", "supply"]);
+
+const PRIVATE_COMPANY_NAME_RE =
+  /\b(trading|import|export|manufacturing|industries|holdings|investment|construction|contractors?|distillers?|brewery|breweries|farms?|agro|textile|garment|pharma|pharmaceutical)\b/i;
+
+const PRIVATE_LEGAL_FORM_RE = /\b(plc|p\.?l\.?c\.?|ltd|limited|share company|s\.?c\.?)\b/i;
+
+const BANK_COMPANY_RE = /\b(bank|microfinance|micro[\s-]?finance)\b/i;
+
+const NGO_COMPANY_RE =
+  /\b(ngo|foundation|charity|non[\s-]?profit|childfund|world vision|save the children|care international|plan international|oxfam|action aid|concern worldwide|tearfund|compassion|unicef|undp|unhcr|wfp|who|fhi\s*360|pathfinder|pact|international medical corps)\b/i;
+
+const GOVERNMENT_COMPANY_RE =
+  /\b(ministry|federal|bureau|authority|commission|municipality|city administration|regional state|public enterprise|state-owned|government)\b/i;
+
 function compactSpaces(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -173,12 +194,20 @@ function normalizeCompany(value: string | null | undefined): string | null {
   return clean || null;
 }
 
+function sourceCategoryKeyMatches(key: string, needle: string): boolean {
+  if (key === needle) return true;
+  if (SOURCE_CATEGORY_WORD_KEYS.has(needle)) {
+    return new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(key);
+  }
+  return key.includes(needle);
+}
+
 function mapSourceCategory(category: string | null | undefined): string | null {
   if (!category?.trim()) return null;
   const key = category.trim().toLowerCase();
   if (SOURCE_CATEGORY_MAP[key]) return SOURCE_CATEGORY_MAP[key];
   for (const [needle, label] of Object.entries(SOURCE_CATEGORY_MAP)) {
-    if (key.includes(needle)) return label;
+    if (sourceCategoryKeyMatches(key, needle)) return label;
   }
   return category.trim();
 }
@@ -214,47 +243,133 @@ function inferField(
   const mapped = mapSourceCategory(sourceCategory);
   const scores = new Map<string, number>();
 
-  for (const [label, score] of scoreField(title, 3)) {
+  const titleScores = scoreField(title, 3);
+  for (const [label, score] of titleScores) {
     scores.set(label, (scores.get(label) ?? 0) + score);
   }
+  const titleBest = pickBestField(titleScores);
+  const titleBestScore = titleScores.get(titleBest) ?? 0;
+
   if (mapped) {
-    scores.set(mapped, (scores.get(mapped) ?? 0) + 4);
+    const sourceBonus = titleBestScore >= 9 && titleBest !== mapped ? 1 : 3;
+    scores.set(mapped, (scores.get(mapped) ?? 0) + sourceBonus);
   }
   if (company) {
     for (const [label, score] of scoreField(company, 1)) {
       scores.set(label, (scores.get(label) ?? 0) + score);
     }
   }
-  const descSample = description.slice(0, 1200);
+  const descSample = description.slice(0, 800);
   for (const [label, score] of scoreField(descSample, 1)) {
     scores.set(label, (scores.get(label) ?? 0) + score);
   }
 
   const inferred = pickBestField(scores);
+  const inferredScore = scores.get(inferred) ?? 0;
+  const mappedScore = mapped ? (scores.get(mapped) ?? 0) : 0;
+
+  if (titleBestScore >= 9 && titleBest !== "General") {
+    if (inferred !== titleBest && titleBestScore >= inferredScore - 2) return titleBest;
+  }
 
   if (mapped && inferred === "General") return mapped;
-  if (mapped && scores.get(inferred)! < (scores.get(mapped) ?? 0) + 2) return mapped;
+  if (mapped && inferredScore < mappedScore + 1) return mapped;
 
   return inferred;
 }
 
-/** Who is hiring — employer sector, not the job board (`scrapedFrom`). */
-function classifyPosterType(company: string | null | undefined, title: string, description: string): string {
-  const hay = [company ?? "", title, description.slice(0, 600)].join(" ").toLowerCase();
+function mapPosterTypeHint(hint: string | null | undefined): string | null {
+  if (!hint?.trim()) return null;
+  const key = hint.trim().toLowerCase();
+  if (/\b(bank|microfinance)\b/.test(key)) return "Bank";
+  if (/\b(ngo|non[\s-]?profit|charity|foundation|cso)\b/.test(key)) return "NGO";
+  if (/\b(government|public|ministry|state)\b/.test(key)) return "Government";
+  if (/\b(airline|aviation)\b/.test(key)) return "Airlines";
+  if (/\b(university|college|school|hospital|institution)\b/.test(key)) return "Institution";
+  if (/\b(private|company|corporate|business)\b/.test(key)) return "Private Company";
+  return null;
+}
 
-  if (/\b(invitation to bid|request for proposal|rfp|rfq|tender|expression of interest|eoi|procurement notice)\b/.test(hay)) {
+/** Who is hiring — employer sector, not the job board (`scrapedFrom`). */
+function classifyPosterType(
+  company: string | null | undefined,
+  title: string,
+  description: string,
+  posterTypeHint?: string | null
+): string {
+  const companyHay = (company ?? "").toLowerCase();
+  const titleHay = title.toLowerCase();
+  const headHay = `${companyHay} ${titleHay}`;
+
+  if (/\b(invitation to bid|request for proposal|rfp|rfq|tender|expression of interest|eoi|procurement notice)\b/.test(headHay)) {
     return "Procurement / Tender";
   }
-  if (/\b(bank of |commercial bank|microfinance|micro finance)\b/.test(hay) || /\b(bank|microfinance)\b/.test(company ?? "")) {
+
+  if (BANK_COMPANY_RE.test(companyHay) || /\b(bank of |commercial bank)\b/.test(companyHay)) {
     return "Bank";
   }
-  if (/\b(ngo|foundation|stiftung|unicef|undp|charity|non[\s-]?profit|international organization|consortium)\b/.test(hay)) {
-    return "NGO";
+  if (NGO_COMPANY_RE.test(companyHay)) return "NGO";
+  if (GOVERNMENT_COMPANY_RE.test(companyHay) && !PRIVATE_LEGAL_FORM_RE.test(companyHay)) {
+    return "Government";
   }
-  if (/\b(airlines?|aviation|airport|ethiopian airlines)\b/.test(hay)) return "Airlines";
-  if (/\b(ministry|authority|government|gov\b|public service|municipal|bureau)\b/.test(hay)) return "Government";
-  if (/\b(university|college|school|hospital|clinic)\b/.test(hay)) return "Institution";
+  if (PRIVATE_LEGAL_FORM_RE.test(companyHay) || PRIVATE_COMPANY_NAME_RE.test(companyHay)) {
+    return "Private Company";
+  }
+
+  const hinted = mapPosterTypeHint(posterTypeHint);
+  if (hinted) return hinted;
+
+  if (BANK_COMPANY_RE.test(titleHay) || /\b(banking systems?|core banking)\b/.test(titleHay)) {
+    return "Bank";
+  }
+  if (NGO_COMPANY_RE.test(titleHay)) return "NGO";
+  if (GOVERNMENT_COMPANY_RE.test(titleHay)) return "Government";
+  if (/\b(airlines?|aviation|airport|ethiopian airlines)\b/.test(headHay)) return "Airlines";
+  if (/\b(university|college|school|hospital|clinic)\b/.test(headHay)) return "Institution";
+
+  const descHay = description.slice(0, 300).toLowerCase();
+  if (NGO_COMPANY_RE.test(descHay) && !PRIVATE_LEGAL_FORM_RE.test(companyHay)) return "NGO";
+
   return "Private Company";
+}
+
+function reconcileLabels(
+  posterType: string,
+  category: string,
+  company: string | null | undefined,
+  title: string
+): { posterType: string; category: string } {
+  const companyHay = (company ?? "").toLowerCase();
+  let nextPoster = posterType;
+  let nextCategory = category;
+
+  if (BANK_COMPANY_RE.test(companyHay)) {
+    nextPoster = "Bank";
+    if (!/bank|insurance|finance/i.test(nextCategory)) {
+      nextCategory = "Banking & Insurance";
+    }
+  }
+
+  if (NGO_COMPANY_RE.test(companyHay)) {
+    nextPoster = "NGO";
+  }
+
+  if (
+    nextPoster === "Government" &&
+    (PRIVATE_LEGAL_FORM_RE.test(companyHay) || PRIVATE_COMPANY_NAME_RE.test(companyHay))
+  ) {
+    nextPoster = "Private Company";
+  }
+
+  if (nextPoster === "Private Company" && GOVERNMENT_COMPANY_RE.test(companyHay) && !PRIVATE_LEGAL_FORM_RE.test(companyHay)) {
+    nextPoster = "Government";
+  }
+
+  if (/\b(audit service|external audit)\b/i.test(title) && nextCategory === "General") {
+    nextCategory = "Accounting & Audit";
+  }
+
+  return { posterType: nextPoster, category: nextCategory };
 }
 
 /** Employment arrangement — distinct from industry `category`. */
@@ -321,13 +436,23 @@ function buildCanonicalKey(normalizedTitle: string | null, normalizedCompany: st
   return createHash("sha256").update(payload).digest("hex").slice(0, 40);
 }
 
+export function normalizeLogoUrl(raw?: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const value = raw.trim();
+  if (value.startsWith("//")) return `https:${value}`;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith("/")) return null;
+  return `https://${value.replace(/^\/+/, "")}`;
+}
+
 export function enrichJobRow(row: RawJobRow): EnrichedJobRow {
   const description = htmlToText(row.description ?? "");
   const normalizedTitle = normalizeToken(row.title);
   const normalizedCompany = normalizeCompany(row.company);
   const normalizedLocation = normalizeToken(row.location);
-  const category = inferField(row.category, row.title, row.company, description);
-  const posterType = classifyPosterType(row.company, row.title, description);
+  let category = inferField(row.category, row.title, row.company, description);
+  let posterType = classifyPosterType(row.company, row.title, description, row.posterTypeHint);
+  ({ posterType, category } = reconcileLabels(posterType, category, row.company, row.title));
   const { jobType, isRemote, isInternship } = classifyEmploymentType(row.title, description);
   const experienceLevel = extractExperienceLevel(row.title, description);
   const educationLevel = extractEducationLevel(row.title, description);
@@ -353,5 +478,6 @@ export function enrichJobRow(row: RawJobRow): EnrichedJobRow {
     canonicalKey,
     expiresAt: extractedExpiresAt,
     isExpired,
+    companyLogoUrl: normalizeLogoUrl(row.companyLogoUrl),
   };
 }
