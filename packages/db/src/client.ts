@@ -22,30 +22,58 @@ function stripSslModeFromConnectionString(href: string): string {
 const strictTls = process.env.DATABASE_SSL_STRICT === "true";
 const conn = strictTls ? connectionString : stripSslModeFromConnectionString(connectionString);
 
-const pool = strictTls
-  ? new pg.Pool({ connectionString: conn })
-  : new pg.Pool({
-      connectionString: conn,
-      ssl: { rejectUnauthorized: false },
-    });
+function createPool() {
+  const pool = strictTls
+    ? new pg.Pool({
+        connectionString: conn,
+        max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+        idleTimeoutMillis: 20_000,
+        connectionTimeoutMillis: 15_000,
+        keepAlive: true,
+      })
+    : new pg.Pool({
+        connectionString: conn,
+        ssl: { rejectUnauthorized: false },
+        max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+        idleTimeoutMillis: 20_000,
+        connectionTimeoutMillis: 15_000,
+        keepAlive: true,
+      });
 
-const adapter = new PrismaPg(pool);
+  pool.on("error", (err) => {
+    console.error("[db] idle pool connection error:", err.message);
+  });
+
+  return pool;
+}
 
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var pgPool: pg.Pool | undefined;
 }
 
-// Dev (tsx --watch): replace singleton so TLS/env changes are not stuck behind a cached client.
+function initPrismaClient() {
+  const pool = createPool();
+  const adapter = new PrismaPg(pool);
+  return { pool, client: new PrismaClient({ adapter }) };
+}
+
+// Dev (tsx --watch): tear down the prior pool/client so Supabase pooler connections are not reused stale.
 if (process.env.NODE_ENV !== "production") {
   void globalThis.prisma?.$disconnect().catch(() => {});
-  globalThis.prisma = new PrismaClient({ adapter });
+  void globalThis.pgPool?.end().catch(() => {});
+  const { pool, client } = initPrismaClient();
+  globalThis.pgPool = pool;
+  globalThis.prisma = client;
+} else if (!globalThis.prisma) {
+  const { pool, client } = initPrismaClient();
+  globalThis.pgPool = pool;
+  globalThis.prisma = client;
 }
 
-export const prisma =
-  process.env.NODE_ENV === "production"
-    ? (globalThis.prisma ??= new PrismaClient({ adapter }))
-    : globalThis.prisma!;
+export const prisma = globalThis.prisma!;
 
 export { buildJobSlugBase, ensureUniqueJobSlug, slugifySegment } from "./slug.js";
 export { formatPostedFreshness } from "./freshness.js";

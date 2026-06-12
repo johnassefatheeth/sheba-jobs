@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import {
   ensureUniqueJobSlug,
   formatPostedFreshness,
@@ -14,8 +14,6 @@ import {
   startOfToday,
 } from './jobQuery.js';
 
-dotenv.config();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -23,18 +21,49 @@ app.use(express.json());
 const PORT = process.env.PORT_API || 4000;
 const EXPIRATION_CHECK_MS = 3 * 60 * 60 * 1000;
 
+function isTransientDbError(err: unknown) {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err.code === 'P1017' || err.code === 'P1001' || err.code === 'P1008')
+  );
+}
+
+async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 5): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientDbError(err) || attempt === attempts) throw err;
+      const delayMs = attempt * 1000;
+      console.warn(`[api] ${label} failed (${attempt}/${attempts}), retrying in ${delayMs}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 async function backfillMissingSlugs() {
   while (true) {
-    const missing = await prisma.job.findMany({
+    const missing = await withDbRetry('backfillMissingSlugs', () =>
+      prisma.job.findMany({
       where: { OR: [{ slug: null }, { slug: "" }] },
       select: { id: true, title: true, company: true },
-      take: 500,
-    });
+        take: 500,
+      }),
+    );
     if (missing.length === 0) break;
 
     for (const job of missing) {
-      const slug = await ensureUniqueJobSlug(prisma, job.title, job.company, job.id);
-      await prisma.job.update({ where: { id: job.id }, data: { slug } });
+      const slug = await withDbRetry('ensureUniqueJobSlug', () =>
+        ensureUniqueJobSlug(prisma, job.title, job.company, job.id),
+      );
+      await withDbRetry('backfillMissingSlugs update', () =>
+        prisma.job.update({ where: { id: job.id }, data: { slug } }),
+      );
     }
 
     console.log(`[api] backfilled ${missing.length} job slug(s)`);

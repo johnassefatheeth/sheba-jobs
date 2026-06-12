@@ -1,6 +1,6 @@
 import { formatPostedFreshness } from "@sheba/db";
 
-type TelegramJob = {
+export type TelegramJob = {
   title: string;
   company?: string | null;
   location?: string | null;
@@ -152,6 +152,7 @@ export function formatTelegramPhotoCaption(job: TelegramJob): string {
 
   lines.push("");
   lines.push("🇪🇹 <i>Sheba Jobs Ethiopia</i>");
+  lines.push(formatChannelLinkLine(true));
 
   let caption = lines.join("\n");
   if (caption.length > 1020) {
@@ -198,8 +199,35 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
 
   lines.push("");
   lines.push("🇪🇹 <i>Sheba Jobs Ethiopia</i>");
+  lines.push(formatChannelLinkLine(false));
 
   return lines.join("\n");
+}
+
+/** Public channel URL for promos (explicit TELEGRAM_CHANNEL_LINK or @username from TELEGRAM_BOT_CHANNEL_ID). */
+export function resolveTelegramChannelLink(): string | null {
+  const explicit = process.env.TELEGRAM_CHANNEL_LINK?.trim();
+  if (explicit) return explicit;
+
+  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
+  if (channelId?.startsWith("@")) {
+    return `https://t.me/${channelId.slice(1)}`;
+  }
+
+  return null;
+}
+
+function formatChannelLinkLine(compact: boolean): string {
+  const link = resolveTelegramChannelLink();
+  if (!link) return "";
+
+  const handle = link.replace(/^https?:\/\/t\.me\//i, "").split("/")[0];
+  const label = handle ? `@${handle}` : "our channel";
+  if (compact) {
+    return `\n📢 <a href="${escapeHtml(link)}">Follow ${escapeHtml(label)}</a>`;
+  }
+
+  return `\n\n📢 <a href="${escapeHtml(link)}">Follow ${escapeHtml(label)}</a> for every job`;
 }
 
 const TELEGRAM_DESCRIPTION_MAX = 255;
@@ -345,6 +373,64 @@ export async function postJobToTelegramChannel(
       return postJobToTelegramChannel(job, { allowPhoto: false });
     }
     console.error("[telegram-poster] send failed:", payload.description ?? response.statusText);
+    return false;
+  }
+
+  return true;
+}
+
+export async function sendJobToTelegramChat(
+  chatId: string,
+  job: TelegramJob,
+  options?: { allowPhoto?: boolean }
+): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!token) return false;
+
+  const applyEmail = parseMailtoEmail(job.applyUrl);
+  const applyUrl = resolveTelegramButtonUrl(job);
+  if (!applyUrl && !applyEmail) return false;
+
+  const replyMarkup = applyUrl
+    ? {
+        reply_markup: {
+          inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
+        },
+      }
+    : {};
+
+  const allowPhoto = options?.allowPhoto !== false;
+  const logoUrl =
+    allowPhoto && isTelegramPhotoUrl(job.companyLogoUrl) ? job.companyLogoUrl!.trim() : null;
+  const endpoint = logoUrl ? "sendPhoto" : "sendMessage";
+  const body = logoUrl
+    ? {
+        chat_id: chatId,
+        photo: logoUrl,
+        caption: formatTelegramPhotoCaption(job),
+        parse_mode: "HTML",
+        ...replyMarkup,
+      }
+    : {
+        chat_id: chatId,
+        text: formatTelegramJobMessage(job),
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...replyMarkup,
+      };
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const payload = (await response.json()) as { ok?: boolean; description?: string };
+  if (!response.ok || !payload.ok) {
+    if (logoUrl) {
+      return sendJobToTelegramChat(chatId, job, { allowPhoto: false });
+    }
+    console.error("[telegram-poster] DM send failed:", payload.description ?? response.statusText);
     return false;
   }
 

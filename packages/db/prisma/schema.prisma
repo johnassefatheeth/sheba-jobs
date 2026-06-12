@@ -37,7 +37,39 @@ model Job {
   postedAt    DateTime?
   telegramPostedAt DateTime?
   createdAt   DateTime @default(now())
+  telegramDeliveries TelegramJobDelivery[]
 
   @@unique([title, sourceUrl], name: "title_sourceUrl_unique")
   @@index([canonicalKey], map: "job_canonical_key_idx")
+}
+
+model TelegramSubscriber {
+  id                String   @id @default(cuid())
+  telegramChatId    String   @unique
+  telegramUserId    String?
+  username          String?
+  firstName         String?
+  isActive          Boolean  @default(true)
+  receiveAll        Boolean  @default(false)
+  categories        String[] @default([])
+  educationLevels   String[] @default([])
+  experienceLevels  String[] @default([])
+  jobTypes          String[] @default([])
+  requireRemote     Boolean  @default(false)
+  requireInternship Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deliveries        TelegramJobDelivery[]
+}
+
+model TelegramJobDelivery {
+  id           String   @id @default(cuid())
+  subscriberId String
+  jobId        String
+  deliveredAt  DateTime @default(now())
+  subscriber   TelegramSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, jobId])
+  @@index([jobId])
 }

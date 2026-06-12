@@ -12,7 +12,8 @@
     "start:website:daemon": "tsx src/websiteScraperDaemon.ts",
     "telegram:session": "tsx src/telegramSessionSetup.ts",
     "telegram:post-recent": "tsx src/telegramChannelBackfill.ts",
-    "telegram:set-channel-info": "tsx src/telegramSetChannelInfo.ts"
+    "telegram:set-channel-info": "tsx src/telegramSetChannelInfo.ts",
+    "telegram:bot": "tsx src/telegramJobBotRunner.ts"
   },
   "dependencies": {
     "@sheba/db": "file:../../packages/db",

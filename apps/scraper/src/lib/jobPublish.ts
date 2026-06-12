@@ -1,5 +1,6 @@
 import { ensureUniqueJobSlug, prisma } from "@sheba/db";
 import { postJobToTelegramChannel } from "./telegramPoster.js";
+import { notifyMatchingTelegramSubscribers } from "./telegramSubscriberNotify.js";
 
 type PersistedJob = {
   id: string;
@@ -49,6 +50,7 @@ export async function announceJobOnTelegram(job: PersistedJob, isNew: boolean) {
   if (!posted) return;
 
   await markJobPostedToTelegram(job.id);
+  await notifyMatchingTelegramSubscribers(job);
 }
 
 /** Post up to `limit` jobs to the channel, walking older jobs when some are already posted or fail. */

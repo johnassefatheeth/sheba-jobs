@@ -283,6 +283,29 @@ Already-posted jobs are skipped; failed sends do not count toward the limit, so 
 
 No extra step needed. When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set, every **new** job saved by the website scraper (or API scheduler) is posted to the channel once.
 
+Each channel post includes a **Follow @channel** link (from `TELEGRAM_BOT_CHANNEL_ID` or `TELEGRAM_CHANNEL_LINK`).
+
+### 7. Personalized job alerts (DM bot)
+
+Users can message your bot privately, set filters (job field, education, experience, job type, remote/internship), and receive matching new jobs in chat.
+
+**Run the bot** (keep this process running alongside the API/scraper):
+
+```bash
+cd apps/scraper
+npm run telegram:bot
+```
+
+**User flow**
+
+1. User opens the bot in Telegram and sends `/start`
+2. Tap **Set preferences** to choose filters, or **All jobs** for every new listing
+3. `/status` shows current settings; `/pause` and `/resume` control alerts
+
+When a new job is scraped and posted to the channel, matching subscribers get the same formatted job in a private message (once per job).
+
+Requires `db push` after pulling (adds `TelegramSubscriber` tables). In BotFather, disable **Group privacy** only if you need the bot to read group messages — private `/start` works with default settings.
+
 ### Message format
 
 Each post includes:
