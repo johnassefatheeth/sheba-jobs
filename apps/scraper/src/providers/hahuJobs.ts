@@ -112,12 +112,12 @@ function formatLocation(j: HahuGraphqlJob): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
-function buildApplyUrl(j: HahuGraphqlJob, detailUrl: string): string | null {
+function buildApplyUrl(j: HahuGraphqlJob): string | null {
   const u = j.application_url?.trim();
   if (u) return u;
   const e = j.application_email?.trim();
   if (e) return `mailto:${e}`;
-  return detailUrl;
+  return null;
 }
 
 function mapJob(j: HahuGraphqlJob, detailTemplate: string): HahuMappedRow {
@@ -128,7 +128,7 @@ function mapJob(j: HahuGraphqlJob, detailTemplate: string): HahuMappedRow {
     location: formatLocation(j),
     category: j.sub_sector?.sector?.name ?? j.sub_sector?.name ?? null,
     description: (j.summary ?? "").trim(),
-    applyUrl: buildApplyUrl(j, detailUrl),
+    applyUrl: buildApplyUrl(j),
     postedAt: j.approved_on ? new Date(j.approved_on) : j.deadline ? new Date(j.deadline) : null,
     sourceUrl: detailUrl,
     rawSource: j.source ?? null,

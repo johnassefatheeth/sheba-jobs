@@ -77,6 +77,7 @@ export const prisma = globalThis.prisma!;
 
 export { buildJobSlugBase, ensureUniqueJobSlug, slugifySegment } from "./slug.js";
 export { formatPostedFreshness } from "./freshness.js";
+export { isHahuListingUrl, sanitizeApplyUrl } from "./applyUrl.js";
 export {
   buildJobCanonicalPath,
   buildJobSeoDescription,

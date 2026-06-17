@@ -195,11 +195,10 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string): Promise<Per
           source: sourceTag,
           scrapedFrom: siteLabel,
           sourceUrl: enriched.sourceUrl,
-          applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
+          applyUrl: enriched.applyUrl,
           postedAt: enriched.postedAt,
         },
       });
-      await announceJobOnTelegram(created, true);
       stats.created++;
       if (enriched.sourceUrl) {
         existingByUrl.set(enriched.sourceUrl, {
@@ -210,6 +209,11 @@ async function persistRows(rows: RawJobRow[], sourcePrefix: string): Promise<Per
         });
       }
       console.log("[website] new", enriched.title.slice(0, 70));
+      try {
+        await announceJobOnTelegram(created, true);
+      } catch (err) {
+        console.warn("[website] telegram announce failed:", enriched.title.slice(0, 70), err);
+      }
     } catch (err) {
       console.error("[website] upsert error", j.title, err);
     }
@@ -436,7 +440,7 @@ async function runGenericApiScraper() {
           source: "website_api",
           scrapedFrom: genericSiteLabel,
           sourceUrl: enriched.sourceUrl,
-          applyUrl: enriched.applyUrl ?? enriched.sourceUrl,
+          applyUrl: enriched.applyUrl,
           postedAt: enriched.postedAt,
         },
       });

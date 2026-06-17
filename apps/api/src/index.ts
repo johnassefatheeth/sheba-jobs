@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
+import path from 'node:path';
 import {
   ensureUniqueJobSlug,
   formatPostedFreshness,
   prisma,
+  sanitizeApplyUrl,
 } from '@sheba/db';
 import { scheduleWebsiteScraper } from './websiteScraperSchedule.js';
 import {
@@ -13,10 +15,18 @@ import {
   parseJobListQuery,
   startOfToday,
 } from './jobQuery.js';
+import adminRouter from './admin/routes.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+app.use(
+  '/uploads/channel-posts',
+  express.static(path.resolve(process.cwd(), 'uploads', 'channel-posts'))
+);
+
+app.use('/admin', adminRouter);
 
 const PORT = process.env.PORT_API || 4000;
 const EXPIRATION_CHECK_MS = 3 * 60 * 60 * 1000;
@@ -92,9 +102,10 @@ function scheduleExpirationChecks() {
   }, EXPIRATION_CHECK_MS);
 }
 
-function withFreshness<T extends { postedAt?: Date | null }>(job: T) {
+function withFreshness<T extends { postedAt?: Date | null; applyUrl?: string | null }>(job: T) {
   return {
     ...job,
+    applyUrl: sanitizeApplyUrl(job.applyUrl),
     freshness: formatPostedFreshness(job.postedAt),
   };
 }

@@ -5,7 +5,7 @@ import {
   buildJobSeoDescription,
   buildJobSeoTitle,
   getSiteUrl,
-} from "../../../lib/jobSeo";
+} from "../../../../lib/jobSeo";
 
 type Job = {
   id: string;

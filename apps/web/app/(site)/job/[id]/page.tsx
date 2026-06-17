@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { buildJobCanonicalPath } from "../../../lib/jobSeo";
+import { buildJobCanonicalPath } from "../../../../lib/jobSeo";
 
 async function getJob(id: string) {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";

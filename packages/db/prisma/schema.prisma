@@ -73,3 +73,23 @@ model TelegramJobDelivery {
   @@unique([subscriberId, jobId])
   @@index([jobId])
 }
+
+/// Editorial posts sent to the Telegram channel (challenges, news, etc.)
+model ChannelPost {
+  id                String    @id @default(cuid())
+  type              String    // challenge | news
+  title             String
+  body              String
+  buttonText        String?
+  buttonUrl         String?
+  imageUrl          String?
+  imagePath         String?
+  status            String    @default("draft") // draft | published
+  telegramPostedAt  DateTime?
+  telegramMessageId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([type])
+}

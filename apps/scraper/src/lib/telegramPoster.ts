@@ -1,6 +1,8 @@
-import { formatPostedFreshness } from "@sheba/db";
+import { formatPostedFreshness, isHahuListingUrl } from "@sheba/db";
 
 export type TelegramJob = {
+  id?: string;
+  slug?: string | null;
   title: string;
   company?: string | null;
   location?: string | null;
@@ -63,12 +65,34 @@ function parseMailtoEmail(raw?: string | null): string | null {
   }
 }
 
+function resolveShebaJobPageUrl(job: TelegramJob): string | null {
+  const base = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.FRONTEND_URL ||
+    process.env.SITE_URL ||
+    ""
+  ).replace(/\/$/, "");
+  if (!base) return null;
+
+  const segment = job.slug?.trim() || job.id?.trim();
+  if (!segment) return null;
+
+  return `${base}/jobs/${encodeURIComponent(segment)}`;
+}
+
 function resolveTelegramButtonUrl(job: TelegramJob): string | null {
-  if (parseMailtoEmail(job.applyUrl)) {
-    return normalizeButtonUrl(job.sourceUrl);
+  const directApply = normalizeButtonUrl(job.applyUrl);
+  if (directApply && !isHahuListingUrl(directApply)) {
+    return directApply;
   }
 
-  return normalizeButtonUrl(job.applyUrl) ?? normalizeButtonUrl(job.sourceUrl);
+  const shebaPage = resolveShebaJobPageUrl(job);
+  if (shebaPage) return shebaPage;
+
+  const source = normalizeButtonUrl(job.sourceUrl);
+  if (source && !isHahuListingUrl(source)) return source;
+
+  return null;
 }
 
 /** Preserve structure: sections, bullets, and line breaks for Telegram HTML. */
@@ -247,20 +271,50 @@ async function callTelegramBotApi(method: string, body: Record<string, unknown>)
     return { ok: false, description: "TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_CHANNEL_ID not set" };
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-  return (await response.json()) as TelegramApiResult;
+    return (await response.json()) as TelegramApiResult;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[telegram-poster] request failed:", message);
+    return { ok: false, description: message };
+  }
+}
+
+async function postTelegramMessage(
+  token: string,
+  endpoint: string,
+  body: Record<string, unknown>
+): Promise<{ ok: boolean; description?: string }> {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const payload = (await response.json()) as { ok?: boolean; description?: string };
+    if (!response.ok || !payload.ok) {
+      return { ok: false, description: payload.description ?? response.statusText };
+    }
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[telegram-poster] request failed:", message);
+    return { ok: false, description: message };
+  }
 }
 
 const DEFAULT_CHANNEL_DESCRIPTION_EN =
-  "Sheba Jobs — Sheba Labs' first publicly available product. We fetch jobs from multiple platforms so you see every opportunity out there.";
+  "Sheba Jobs Ethiopia — jobs from Ethiojobs, HaHu, Afriwork, EffoySira & Telegram in one place. Browse & filter at sheba.jobs · Alerts: @ShebaJobsbot";
 
 const DEFAULT_CHANNEL_DESCRIPTION_AM =
-  "ሼባ ጆብስ — የሼባ ላብስ የመጀመሪያ ለህዝብ የቀረበ ምርት። ከብዙ መድረኮች የስራ ዕድሎችን በማምጣት ያሉትን ሁሉንም ዕድሎች ያሳያል።";
+  "ሼባ ጆብስ ኢትዮጵያ — ከብዙ መድረኮች የስራ ዕድሎች በአንድ ቦታ። በ sheba.jobs ይፈልጉ እና ያጣሩ። ማሳወቂያ፡ @ShebaJobsbot";
 
 /** Default channel “About” text (max 255 chars per Telegram). */
 export function buildDefaultChannelDescription(): string {
@@ -360,19 +414,13 @@ export async function postJobToTelegramChannel(
         ...replyMarkup,
       };
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const payload = (await response.json()) as { ok?: boolean; description?: string };
-  if (!response.ok || !payload.ok) {
+  const result = await postTelegramMessage(token, endpoint, body);
+  if (!result.ok) {
     if (logoUrl) {
-      console.warn("[telegram-poster] photo send failed, retrying as text:", payload.description ?? response.statusText);
+      console.warn("[telegram-poster] photo send failed, retrying as text:", result.description);
       return postJobToTelegramChannel(job, { allowPhoto: false });
     }
-    console.error("[telegram-poster] send failed:", payload.description ?? response.statusText);
+    console.error("[telegram-poster] send failed:", result.description);
     return false;
   }
 
@@ -419,18 +467,12 @@ export async function sendJobToTelegramChat(
         ...replyMarkup,
       };
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const payload = (await response.json()) as { ok?: boolean; description?: string };
-  if (!response.ok || !payload.ok) {
+  const result = await postTelegramMessage(token, endpoint, body);
+  if (!result.ok) {
     if (logoUrl) {
       return sendJobToTelegramChat(chatId, job, { allowPhoto: false });
     }
-    console.error("[telegram-poster] DM send failed:", payload.description ?? response.statusText);
+    console.error("[telegram-poster] DM send failed:", result.description);
     return false;
   }
 
