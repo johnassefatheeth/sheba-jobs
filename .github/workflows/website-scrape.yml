@@ -1,5 +1,5 @@
 # Hourly website scrape — free on GitHub Actions (Workers free cron has ~10ms CPU).
-# Add repo secrets: DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (optional).
+# Repo secrets: DATABASE_URL (required), TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (optional).
 name: Website scrape
 
 on:
@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install and build db package
         working-directory: packages/db
@@ -24,6 +24,7 @@ jobs:
           npm run build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
       - name: Run website scraper
         working-directory: apps/scraper
