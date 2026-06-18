@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { prisma } from "@sheba/db";
+import { prisma } from "@sheba/db/shared";
 
 export type JobListQuery = {
   search?: string;

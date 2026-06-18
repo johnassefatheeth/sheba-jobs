@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { prisma } from '@sheba/db';
+import { prisma } from '@sheba/db/shared';
 import {
   adminEnabled,
   createAdminToken,

@@ -17,6 +17,14 @@
     "./dist/client.js": {
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
+    },
+    "./worker": {
+      "types": "./dist/worker-client.d.ts",
+      "import": "./dist/worker-client.js"
+    },
+    "./shared": {
+      "types": "./dist/shared.d.ts",
+      "import": "./dist/shared.js"
     }
   },
   "scripts": {

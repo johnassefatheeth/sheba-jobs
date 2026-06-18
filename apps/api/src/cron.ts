@@ -1,4 +1,4 @@
-import { ensureUniqueJobSlug, prisma } from "@sheba/db";
+import { ensureUniqueJobSlug, prisma } from "@sheba/db/shared";
 
 function isTransientDbError(err: unknown) {
   return (

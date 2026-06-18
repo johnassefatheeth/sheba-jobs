@@ -1,6 +1,7 @@
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
+import { prisma as prismaProxy } from "./shared.js";
 
 /** `sslmode=require` in the URI is treated like strict verify with `pg` and can ignore `Pool.ssl`. */
 function stripSslModeFromConnectionString(href: string): string {
@@ -43,8 +44,6 @@ function createPool(connectionString: string) {
 
 declare global {
   // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
-  // eslint-disable-next-line no-var
   var pgPool: pg.Pool | undefined;
 }
 
@@ -52,24 +51,6 @@ function initLocalPrismaClient(connectionString: string) {
   const pool = createPool(connectionString);
   const adapter = new PrismaPg(pool);
   return { pool, client: new PrismaClient({ adapter }) };
-}
-
-/** Hyperdrive / Workers: one short-lived client per request or cron invocation. */
-export function createPrismaClient(connectionString: string): PrismaClient {
-  const adapter = new PrismaPg({ connectionString });
-  return new PrismaClient({ adapter });
-}
-
-export async function withPrisma<T>(connectionString: string, fn: () => Promise<T>): Promise<T> {
-  const client = createPrismaClient(connectionString);
-  const previous = globalThis.prisma;
-  globalThis.prisma = client;
-  try {
-    return await fn();
-  } finally {
-    await client.$disconnect().catch(() => {});
-    globalThis.prisma = previous;
-  }
 }
 
 const connectionString = process.env.DATABASE_URL;
@@ -87,26 +68,6 @@ if (connectionString) {
   }
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
-    const client = globalThis.prisma;
-    if (!client) {
-      throw new Error(
-        "Prisma client is not initialized. Set DATABASE_URL for local dev or run inside a Worker context."
-      );
-    }
-    const value = Reflect.get(client, prop, client);
-    return typeof value === "function" ? value.bind(client) : value;
-  },
-});
-
-export { buildJobSlugBase, ensureUniqueJobSlug, slugifySegment } from "./slug.js";
-export { formatPostedFreshness } from "./freshness.js";
-export { isHahuListingUrl, sanitizeApplyUrl } from "./applyUrl.js";
-export {
-  buildJobCanonicalPath,
-  buildJobSeoDescription,
-  buildJobSeoTitle,
-} from "./seo.js";
-
-export default prisma;
+export * from "./shared.js";
+export { prismaProxy as prisma };
+export default prismaProxy;

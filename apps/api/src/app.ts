@@ -4,7 +4,7 @@ import {
   formatPostedFreshness,
   prisma,
   sanitizeApplyUrl,
-} from "@sheba/db";
+} from "@sheba/db/shared";
 import {
   buildJobWhere,
   getJobMeta,
