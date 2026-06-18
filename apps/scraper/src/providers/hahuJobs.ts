@@ -131,7 +131,7 @@ function mapJob(j: HahuGraphqlJob, detailTemplate: string): HahuMappedRow {
     applyUrl: buildApplyUrl(j),
     postedAt: j.approved_on ? new Date(j.approved_on) : j.deadline ? new Date(j.deadline) : null,
     sourceUrl: detailUrl,
-    rawSource: j.source ?? null,
+    rawSource: j.application_method ?? j.source ?? null,
     expiresAt: j.deadline ? new Date(j.deadline) : null,
     isExpired: Boolean(j.expired),
     companyLogoUrl: j.entity?.logo?.trim() || null,

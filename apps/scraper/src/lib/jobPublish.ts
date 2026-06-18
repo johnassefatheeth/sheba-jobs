@@ -4,6 +4,8 @@ import { notifyMatchingTelegramSubscribers } from "./telegramSubscriberNotify.js
 
 type PersistedJob = {
   id: string;
+  slug?: string | null;
+  source?: string | null;
   title: string;
   company?: string | null;
   location?: string | null;

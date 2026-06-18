@@ -11,6 +11,10 @@ export type TelegramJob = {
   postedAt?: Date | null;
   applyUrl?: string | null;
   sourceUrl?: string | null;
+  /** Provider hint, e.g. HaHu `email` / `in_person` (also parsed from `source` like `hahu:email`). */
+  applicationMethod?: string | null;
+  /** Stored scrape source tag, e.g. `hahu:email`. */
+  source?: string | null;
   jobType?: string | null;
   posterType?: string | null;
   experienceLevel?: string | null;
@@ -19,6 +23,14 @@ export type TelegramJob = {
   isInternship?: boolean;
   scrapedFrom?: string | null;
   companyLogoUrl?: string | null;
+};
+
+type ApplicationMethod = "link" | "email" | "in_person" | "both" | "phone";
+
+type ApplyPresentation = {
+  buttonUrl: string | null;
+  instructionHtml: string | null;
+  postable: boolean;
 };
 
 const SECTION_HEADER =
@@ -65,6 +77,115 @@ function parseMailtoEmail(raw?: string | null): string | null {
   }
 }
 
+function parseTelPhone(raw?: string | null): string | null {
+  const value = raw?.trim();
+  if (!value || !/^tel:/i.test(value)) return null;
+
+  try {
+    const phone = decodeURIComponent(new URL(value).pathname).trim();
+    return phone || null;
+  } catch {
+    const match = value.match(/^tel:([^?&#]+)/i);
+    return match?.[1]?.trim() || null;
+  }
+}
+
+function normalizeApplicationMethod(raw?: string | null): ApplicationMethod | null {
+  if (!raw?.trim()) return null;
+  const value = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (value === "link" || value === "url" || value === "online" || value === "website") return "link";
+  if (value === "email" || value === "e_mail") return "email";
+  if (value === "in_person" || value === "inperson" || value === "physical" || value === "walk_in") {
+    return "in_person";
+  }
+  if (value === "both") return "both";
+  if (value === "phone" || value === "telephone" || value === "call") return "phone";
+  return null;
+}
+
+function applicationMethodFromJob(job: TelegramJob): ApplicationMethod | null {
+  const direct = normalizeApplicationMethod(job.applicationMethod);
+  if (direct) return direct;
+
+  const source = job.source?.trim();
+  if (source) {
+    const suffix = source.includes(":") ? source.split(":").slice(1).join(":") : source;
+    const fromSource = normalizeApplicationMethod(suffix);
+    if (fromSource) return fromSource;
+  }
+
+  if (parseMailtoEmail(job.applyUrl)) return "email";
+  if (parseTelPhone(job.applyUrl)) return "phone";
+  if (normalizeButtonUrl(job.applyUrl)) return "link";
+
+  if (!job.applyUrl?.trim() && job.description) {
+    if (/\b(in[\s-]?person|walk[\s-]?in|apply in person|submit.*in person|at our office)\b/i.test(job.description)) {
+      return "in_person";
+    }
+  }
+
+  return null;
+}
+
+function resolveDirectApplyButtonUrl(job: TelegramJob, method: ApplicationMethod | null): string | null {
+  if (method === "email" || method === "in_person" || method === "phone") {
+    return null;
+  }
+
+  const directApply = normalizeButtonUrl(job.applyUrl);
+  if (method === "both") {
+    if (directApply && !isHahuListingUrl(directApply)) return directApply;
+    return null;
+  }
+
+  if (directApply && !isHahuListingUrl(directApply)) {
+    return directApply;
+  }
+
+  const shebaPage = resolveShebaJobPageUrl(job);
+  if (shebaPage) return shebaPage;
+
+  const source = normalizeButtonUrl(job.sourceUrl);
+  if (source && !isHahuListingUrl(source)) return source;
+
+  return null;
+}
+
+function formatApplyInstruction(job: TelegramJob, method: ApplicationMethod | null): string | null {
+  const email = parseMailtoEmail(job.applyUrl);
+  const phone = parseTelPhone(job.applyUrl);
+  const location = job.location?.trim();
+
+  if (email || method === "email") {
+    return `📧 <b>How to apply:</b> Send your resume to <code>${escapeHtml(email!)}</code>`;
+  }
+
+  if (phone || method === "phone") {
+    return `📞 <b>How to apply:</b> Call <code>${escapeHtml(phone!)}</code>`;
+  }
+
+  if (method === "in_person") {
+    const where = location ? ` at <b>${escapeHtml(location)}</b>` : "";
+    return `🤝 <b>How to apply:</b> Submit your application in person${where}.`;
+  }
+
+  if (method === "both" && !email && !phone) {
+    return "📋 <b>How to apply:</b> See the job description for application instructions.";
+  }
+
+  return null;
+}
+
+function resolveApplyPresentation(job: TelegramJob): ApplyPresentation {
+  const method = applicationMethodFromJob(job);
+  const instructionHtml = formatApplyInstruction(job, method);
+  const buttonUrl = resolveDirectApplyButtonUrl(job, method);
+  const shebaPage = resolveShebaJobPageUrl(job);
+  const postable = Boolean(buttonUrl || instructionHtml || shebaPage);
+
+  return { buttonUrl, instructionHtml, postable };
+}
+
 function resolveShebaJobPageUrl(job: TelegramJob): string | null {
   const base = (
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -78,21 +199,6 @@ function resolveShebaJobPageUrl(job: TelegramJob): string | null {
   if (!segment) return null;
 
   return `${base}/jobs/${encodeURIComponent(segment)}`;
-}
-
-function resolveTelegramButtonUrl(job: TelegramJob): string | null {
-  const directApply = normalizeButtonUrl(job.applyUrl);
-  if (directApply && !isHahuListingUrl(directApply)) {
-    return directApply;
-  }
-
-  const shebaPage = resolveShebaJobPageUrl(job);
-  if (shebaPage) return shebaPage;
-
-  const source = normalizeButtonUrl(job.sourceUrl);
-  if (source && !isHahuListingUrl(source)) return source;
-
-  return null;
 }
 
 /** Preserve structure: sections, bullets, and line breaks for Telegram HTML. */
@@ -161,10 +267,10 @@ export function formatTelegramPhotoCaption(job: TelegramJob): string {
     lines.push(tagLine);
   }
 
-  const applyEmail = parseMailtoEmail(job.applyUrl);
-  if (applyEmail) {
+  const applyPresentation = resolveApplyPresentation(job);
+  if (applyPresentation.instructionHtml) {
     lines.push("");
-    lines.push(`📧 <b>Apply at</b> '<code>${escapeHtml(applyEmail)}</code>'`);
+    lines.push(applyPresentation.instructionHtml);
   }
 
   lines.push("");
@@ -208,10 +314,10 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
     lines.push(formatDescriptionSection(job.description));
   }
 
-  const applyEmail = parseMailtoEmail(job.applyUrl);
-  if (applyEmail) {
+  const applyPresentation = resolveApplyPresentation(job);
+  if (applyPresentation.instructionHtml) {
     lines.push("");
-    lines.push(`📧 <b>Apply at</b> '<code>${escapeHtml(applyEmail)}</code>'`);
+    lines.push(applyPresentation.instructionHtml);
   }
 
   lines.push("");
@@ -379,17 +485,16 @@ export async function postJobToTelegramChannel(
   if (!config) return false;
   const { token, channelId } = config;
 
-  const applyEmail = parseMailtoEmail(job.applyUrl);
-  const applyUrl = resolveTelegramButtonUrl(job);
-  if (!applyUrl && !applyEmail) {
-    console.warn("[telegram-poster] skip job without valid apply link:", job.title.slice(0, 60));
+  const applyPresentation = resolveApplyPresentation(job);
+  if (!applyPresentation.postable) {
+    console.warn("[telegram-poster] skip job without apply details:", job.title.slice(0, 60));
     return false;
   }
 
-  const replyMarkup = applyUrl
+  const replyMarkup = applyPresentation.buttonUrl
     ? {
         reply_markup: {
-          inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
+          inline_keyboard: [[{ text: "✅ Apply Now", url: applyPresentation.buttonUrl }]],
         },
       }
     : {};
@@ -435,14 +540,13 @@ export async function sendJobToTelegramChat(
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   if (!token) return false;
 
-  const applyEmail = parseMailtoEmail(job.applyUrl);
-  const applyUrl = resolveTelegramButtonUrl(job);
-  if (!applyUrl && !applyEmail) return false;
+  const applyPresentation = resolveApplyPresentation(job);
+  if (!applyPresentation.postable) return false;
 
-  const replyMarkup = applyUrl
+  const replyMarkup = applyPresentation.buttonUrl
     ? {
         reply_markup: {
-          inline_keyboard: [[{ text: "✅ Apply Now", url: applyUrl }]],
+          inline_keyboard: [[{ text: "✅ Apply Now", url: applyPresentation.buttonUrl }]],
         },
       }
     : {};
