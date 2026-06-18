@@ -1,15 +1,32 @@
-# Hourly website scrape — free on GitHub Actions (Workers free cron has ~10ms CPU).
-# Repo secrets: DATABASE_URL (required), TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (optional).
+# Hourly website scrape.
+#
+# GitHub `schedule` can be delayed or skipped (especially at :00 UTC on private repos).
+# Cron is set to :17 past each hour to reduce queue drops.
+#
+# Repo secrets (Settings → Secrets → Actions):
+#   DATABASE_URL (required)
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (for Telegram posts)
+#
+# If scheduled runs never appear (only "Manually run by"), use the backup trigger:
+#   https://cron-job.org — POST every hour to workflow_dispatch (see README).
 name: Website scrape
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-scrape
+  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
