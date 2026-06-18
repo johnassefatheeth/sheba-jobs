@@ -1,0 +1,12 @@
+# Copy to .dev.vars for `wrangler dev` / `wrangler deploy` secrets.
+# Non-secret defaults live in wrangler.jsonc [vars].
+
+ADMIN_PASSWORD=
+ADMIN_TOKEN_SECRET=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_CHANNEL_ID=
+TELEGRAM_CHANNEL_LINK=
+
+# Optional scraper provider overrides (defaults in wrangler.jsonc)
+# WEBSITE_JOBS_PROVIDER=all
+# WEBSITE_SCRAPER_ENABLED=true

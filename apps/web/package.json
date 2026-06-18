@@ -6,9 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "postinstall": "patch-package"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "1.10.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
     "next": "^14.0.0",
@@ -18,6 +24,8 @@
   },
   "devDependencies": {
     "@types/react": "19.2.14",
-    "typescript": "6.0.3"
+    "patch-package": "^8.0.1",
+    "typescript": "6.0.3",
+    "wrangler": "^4.101.0"
   }
 }

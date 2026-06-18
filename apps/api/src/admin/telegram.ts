@@ -1,5 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import { resolveChannelPostImageFile, isTelegramPhotoUrl } from './uploads.js';
+import {
+  channelPostImageFilename,
+  isTelegramPhotoUrl,
+  readChannelPostImage,
+} from './uploads.js';
 
 type ChannelPostPayload = {
   type: string;
@@ -222,14 +225,17 @@ export async function publishChannelPost(
   const text = formatChannelAnnouncement(post);
   const caption = truncateCaption(text);
   const replyMarkup = buildReplyMarkup(post);
-  const localFile = resolveChannelPostImageFile(post.imagePath);
+  const hasLocalImage = Boolean(post.imagePath);
   const remoteUrl = isTelegramPhotoUrl(post.imageUrl) ? post.imageUrl!.trim() : null;
 
   let result: { ok: boolean; description?: string; messageId?: string };
 
-  if (localFile) {
-    const buffer = await readFile(localFile);
-    const filename = localFile.split(/[/\\]/).pop() || 'image.jpg';
+  if (hasLocalImage) {
+    const buffer = await readChannelPostImage(post.imagePath);
+    if (!buffer) {
+      return { ok: false, error: 'Channel post image not found in storage' };
+    }
+    const filename = channelPostImageFilename(post.imagePath) || 'image.jpg';
     result = await sendTelegramPhotoMultipart(
       config.token,
       config.channelId,

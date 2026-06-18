@@ -4,6 +4,9 @@ packages/db/src/generated
 .env.local
 dist
 .next
+.open-next
+.wrangler
+.dev.vars
 .vercel
 package-lock.json
 pnpm-lock.yaml

@@ -1,0 +1,37 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "sheba-jobs-api",
+	"main": "src/worker.ts",
+	"account_id": "e2a33666b99aaa418cedb1092b3aba9c",
+	"compatibility_date": "2025-06-17",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"enable_nodejs_http_modules",
+		"enable_nodejs_http_server_modules",
+		"global_fetch_strictly_public"
+	],
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "65669f515cb14d0c8abc4379b47b6e83"
+		}
+	],
+	"triggers": {
+		"crons": [
+			"0 */3 * * *",
+			"30 4 * * *"
+		]
+	},
+	"routes": [
+		{
+			"pattern": "api.sheba-labs.com",
+			"custom_domain": true
+		}
+	],
+	"vars": {
+		"API_PUBLIC_URL": "https://api.sheba-labs.com",
+		"FRONTEND_URL": "https://jobs.sheba-labs.com",
+		"WEBSITE_JOBS_PROVIDER": "all",
+		"WEBSITE_SCRAPER_ENABLED": "true"
+	}
+}

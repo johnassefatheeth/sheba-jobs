@@ -78,8 +78,57 @@ New scraped jobs are posted automatically to your Telegram channel when `TELEGRA
 
 Deployment
 ----------
-- Frontend: deploy `apps/web` to Vercel.
-- Backend + scraper: deploy to Railway (or any Node host). Ensure `DATABASE_URL` and Telegram secrets in env.
+Both apps target **Cloudflare Workers** (free tier). Database stays on **Supabase** (free tier).
+
+### Frontend (`apps/web`)
+
+```bash
+cd apps/web
+npm install
+npm run deploy   # use WSL or Linux CI on Windows — see OpenNext warnings
+```
+
+Custom domain: `jobs.sheba-labs.com` (see `wrangler.jsonc`).
+
+### API (`apps/api`)
+
+One-time Cloudflare setup:
+
+1. **Hyperdrive** (pools connections to Supabase Postgres):
+   ```bash
+   cd apps/api
+   npx wrangler hyperdrive create sheba-jobs-db --connection-string="YOUR_SUPABASE_DIRECT_URL"
+   ```
+   Copy the id into `wrangler.jsonc` → `hyperdrive[0].id`.
+
+2. **R2 bucket** for admin channel-post images:
+   ```bash
+   npx wrangler r2 bucket create sheba-jobs-uploads
+   ```
+
+3. **Secrets** (copy `.dev.vars.example` → `.dev.vars`, fill in, then):
+   ```bash
+   npx wrangler secret bulk .dev.vars
+   ```
+
+4. **Deploy**:
+   ```bash
+   npm install
+   npm run deploy
+   ```
+
+Custom domain: `api.sheba-labs.com`. Cron triggers mark expired jobs and backfill slugs.
+
+**Website scraping** runs on **GitHub Actions** (free for public repos) — see `.github/workflows/website-scrape.yml`. Add `DATABASE_URL` (+ optional Telegram secrets) as GitHub repo secrets. Workers free-tier cron only allows ~10ms CPU, which is not enough for scraping.
+
+### Local API dev
+
+```bash
+cd apps/api
+cp .dev.vars.example .dev.vars   # optional for worker dev
+npm run dev                        # Express on :4000 with DATABASE_URL in .env
+npm run dev:worker                 # Wrangler dev (needs Hyperdrive + .dev.vars)
+```
 
 Notes
 -----

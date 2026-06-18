@@ -25,7 +25,7 @@
     "db:migrate": "dotenv -e .env -- prisma migrate dev",
     "db:studio": "dotenv -e .env -- prisma studio",
     "db:validate": "dotenv -e .env -- prisma validate",
-    "build": "npm run prisma:generate && tsc -p tsconfig.json",
+    "build": "npm run prisma:generate && tsc -p tsconfig.json && node scripts/copy-prisma-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

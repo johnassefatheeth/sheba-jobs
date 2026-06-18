@@ -1,0 +1,38 @@
+# Hourly website scrape — free on GitHub Actions (Workers free cron has ~10ms CPU).
+# Add repo secrets: DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (optional).
+name: Website scrape
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build db package
+        working-directory: packages/db
+        run: |
+          npm install
+          npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run website scraper
+        working-directory: apps/scraper
+        run: |
+          npm install
+          npm run start:website
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WEBSITE_JOBS_PROVIDER: all
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_CHANNEL_ID: ${{ secrets.TELEGRAM_BOT_CHANNEL_ID }}
+          NEXT_PUBLIC_SITE_URL: https://jobs.sheba-labs.com

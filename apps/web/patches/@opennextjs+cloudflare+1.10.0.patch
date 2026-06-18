@@ -1,0 +1,21 @@
+diff --git a/node_modules/@opennextjs/cloudflare/dist/cli/commands/utils.js b/node_modules/@opennextjs/cloudflare/dist/cli/commands/utils.js
+index 08dad80..a76b8db 100644
+--- a/node_modules/@opennextjs/cloudflare/dist/cli/commands/utils.js
++++ b/node_modules/@opennextjs/cloudflare/dist/cli/commands/utils.js
+@@ -1,6 +1,7 @@
+ import { existsSync } from "node:fs";
+ import { createRequire } from "node:module";
+ import path from "node:path";
++import { pathToFileURL } from "node:url";
+ import { compileOpenNextConfig } from "@opennextjs/aws/build/compileConfig.js";
+ import { normalizeOptions } from "@opennextjs/aws/build/helper.js";
+ import { printHeader, showWarningOnWindows } from "@opennextjs/aws/build/utils.js";
+@@ -50,7 +51,7 @@ export async function retrieveCompiledConfig() {
+         logger.error("Could not find compiled Open Next config, did you run the build command?");
+         process.exit(1);
+     }
+-    const config = await import(configPath).then((mod) => mod.default);
++    const config = await import(pathToFileURL(configPath).href).then((mod) => mod.default);
+     ensureCloudflareConfig(config);
+     return { config };
+ }

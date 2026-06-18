@@ -1,12 +1,6 @@
-import "dotenv/config";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set");
-}
 
 /** `sslmode=require` in the URI is treated like strict verify with `pg` and can ignore `Pool.ssl`. */
 function stripSslModeFromConnectionString(href: string): string {
@@ -19,10 +13,10 @@ function stripSslModeFromConnectionString(href: string): string {
   return tail ? `${base}?${tail}` : base;
 }
 
-const strictTls = process.env.DATABASE_SSL_STRICT === "true";
-const conn = strictTls ? connectionString : stripSslModeFromConnectionString(connectionString);
+function createPool(connectionString: string) {
+  const strictTls = process.env.DATABASE_SSL_STRICT === "true";
+  const conn = strictTls ? connectionString : stripSslModeFromConnectionString(connectionString);
 
-function createPool() {
   const pool = strictTls
     ? new pg.Pool({
         connectionString: conn,
@@ -54,26 +48,57 @@ declare global {
   var pgPool: pg.Pool | undefined;
 }
 
-function initPrismaClient() {
-  const pool = createPool();
+function initLocalPrismaClient(connectionString: string) {
+  const pool = createPool(connectionString);
   const adapter = new PrismaPg(pool);
   return { pool, client: new PrismaClient({ adapter }) };
 }
 
-// Dev (tsx --watch): tear down the prior pool/client so Supabase pooler connections are not reused stale.
-if (process.env.NODE_ENV !== "production") {
-  void globalThis.prisma?.$disconnect().catch(() => {});
-  void globalThis.pgPool?.end().catch(() => {});
-  const { pool, client } = initPrismaClient();
-  globalThis.pgPool = pool;
-  globalThis.prisma = client;
-} else if (!globalThis.prisma) {
-  const { pool, client } = initPrismaClient();
-  globalThis.pgPool = pool;
-  globalThis.prisma = client;
+/** Hyperdrive / Workers: one short-lived client per request or cron invocation. */
+export function createPrismaClient(connectionString: string): PrismaClient {
+  const adapter = new PrismaPg({ connectionString });
+  return new PrismaClient({ adapter });
 }
 
-export const prisma = globalThis.prisma!;
+export async function withPrisma<T>(connectionString: string, fn: () => Promise<T>): Promise<T> {
+  const client = createPrismaClient(connectionString);
+  const previous = globalThis.prisma;
+  globalThis.prisma = client;
+  try {
+    return await fn();
+  } finally {
+    await client.$disconnect().catch(() => {});
+    globalThis.prisma = previous;
+  }
+}
+
+const connectionString = process.env.DATABASE_URL;
+if (connectionString) {
+  if (process.env.NODE_ENV !== "production") {
+    void globalThis.prisma?.$disconnect().catch(() => {});
+    void globalThis.pgPool?.end().catch(() => {});
+    const { pool, client } = initLocalPrismaClient(connectionString);
+    globalThis.pgPool = pool;
+    globalThis.prisma = client;
+  } else if (!globalThis.prisma) {
+    const { pool, client } = initLocalPrismaClient(connectionString);
+    globalThis.pgPool = pool;
+    globalThis.prisma = client;
+  }
+}
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = globalThis.prisma;
+    if (!client) {
+      throw new Error(
+        "Prisma client is not initialized. Set DATABASE_URL for local dev or run inside a Worker context."
+      );
+    }
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
 
 export { buildJobSlugBase, ensureUniqueJobSlug, slugifySegment } from "./slug.js";
 export { formatPostedFreshness } from "./freshness.js";
