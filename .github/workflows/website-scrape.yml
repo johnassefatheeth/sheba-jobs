@@ -63,6 +63,7 @@ jobs:
           npm run start:website
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
           WEBSITE_JOBS_PROVIDER: all
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_CHANNEL_ID: ${{ secrets.TELEGRAM_BOT_CHANNEL_ID }}
