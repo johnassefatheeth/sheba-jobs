@@ -43,4 +43,5 @@ interface Env {
   WEBSITE_JOBS_API_HEADERS?: string;
   WEBSITE_SCRAPER_SITE_LABEL?: string;
   TELEGRAM_SYNC_CHANNEL_INFO?: string;
+  NEXT_PUBLIC_SITE_URL?: string;
 }

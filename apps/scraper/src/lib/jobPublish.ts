@@ -1,4 +1,4 @@
-import { ensureUniqueJobSlug, prisma } from "@sheba/db";
+import { ensureUniqueJobSlug, prisma } from "@sheba/db/shared";
 import { postJobToTelegramChannel } from "./telegramPoster.js";
 import { notifyMatchingTelegramSubscribers } from "./telegramSubscriberNotify.js";
 

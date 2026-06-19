@@ -1,4 +1,4 @@
-import { formatPostedFreshness, isHahuListingUrl } from "@sheba/db";
+import { formatPostedFreshness, isHahuListingUrl } from "@sheba/db/shared";
 
 export type TelegramJob = {
   id?: string;

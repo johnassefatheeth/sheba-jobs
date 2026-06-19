@@ -39,6 +39,7 @@ const WORKER_ENV_KEYS = [
   "TELEGRAM_SYNC_CHANNEL_INFO",
   "FRONTEND_URL",
   "API_PUBLIC_URL",
+  "NEXT_PUBLIC_SITE_URL",
 ] as const;
 
 export type Env = {

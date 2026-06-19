@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { ensureUniqueJobSlug, prisma } from "@sheba/db";
+import { ensureUniqueJobSlug, prisma } from "@sheba/db/shared";
 import { fetchJobsFromApi, type FieldMap } from "./fetchJobsFromApi.js";
 import { enrichJobRow, type RawJobRow } from "./jobEnrichment.js";
 import { announceJobOnTelegram, assignSlugIfMissing } from "./jobPublish.js";

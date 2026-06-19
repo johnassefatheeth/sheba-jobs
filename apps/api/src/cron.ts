@@ -71,9 +71,42 @@ export async function backfillAllMissingSlugs() {
   }
 }
 
+/** Hourly website scrape — needs Workers Paid (~15 min CPU per hourly cron). */
+export const SCRAPE_CRON = "17 * * * *";
+
+let scrapeInProgress = false;
+
+export async function runScheduledWebsiteScraper() {
+  if (process.env.WEBSITE_SCRAPER_ENABLED === "false") {
+    console.log("[cron] website scraper disabled (WEBSITE_SCRAPER_ENABLED=false)");
+    return;
+  }
+
+  if (scrapeInProgress) {
+    console.log("[cron] website scrape already in progress, skipping");
+    return;
+  }
+
+  scrapeInProgress = true;
+  try {
+    const { runWebsiteScraper } = await import("@sheba/scraper/website");
+    await runWebsiteScraper();
+  } catch (err) {
+    console.error("[cron] website scrape failed:", err);
+    throw err;
+  } finally {
+    scrapeInProgress = false;
+  }
+}
+
 /** Cron schedules are defined in wrangler.jsonc. */
 export async function handleScheduled(cron: string) {
   console.log("[cron] tick", cron, new Date().toISOString());
+
+  if (cron === SCRAPE_CRON) {
+    await runScheduledWebsiteScraper();
+    return;
+  }
 
   if (cron === "0 */3 * * *") {
     await markExpiredJobs();

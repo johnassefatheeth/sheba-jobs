@@ -1,19 +1,32 @@
-# Hourly website scrape.
+# Website scrape — triggered by cron-job.org (schedule lives there, not here).
 #
-# GitHub `schedule` can be delayed or skipped (especially at :00 UTC on private repos).
-# Cron is set to :17 past each hour to reduce queue drops.
+# cron-job.org: POST workflow_dispatch (same URL + GitHub PAT for every job).
+#   https://api.github.com/repos/johnassefatheeth/sheba-jobs/actions/workflows/website-scrape.yml/dispatches
+#   Body: {"ref":"main"}
+#   Headers: Accept application/vnd.github+json, Authorization Bearer <PAT>, X-GitHub-Api-Version 2022-11-28
 #
-# Repo secrets (Settings → Secrets → Actions):
-#   DATABASE_URL (required)
-#   TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID (for Telegram posts)
+# All times below are Ethiopia (EAT = UTC+3). cron-job.org uses UTC.
 #
-# If scheduled runs never appear (only "Manually run by"), use the backup trigger:
-#   https://cron-job.org — POST every hour to workflow_dispatch (see README).
+# --- Mon–Fri day (every 25 min, 08:00–16:45 EAT) ---
+#   Weekdays: MON–FRI
+#   Minutes UTC: 0,5,10,15,20,25,30,35,40,45,50,55
+#   Hours UTC: 5–12 (all), plus hour 13 minutes 0,25,45 (16:00, 16:25, 16:45 EAT)
+#
+# --- Sat–Sun day (every 2 h, 08:00–16:00 EAT) ---
+#   Weekdays: SAT–SUN
+#   Minutes: 0
+#   Hours UTC: 5,7,9,11,13
+#
+# --- Every night (every 3.5 h) ---
+#   Weekdays: all days
+#   UTC: 14:00, 17:30, 21:00, 00:30, 04:00  →  17:00, 20:30, 00:00, 03:30, 07:00 EAT
+#
+# ~155 runs/week (~22/day avg) × ~3 min ≈ under 2,000 Actions min/month on private repos.
+#
+# Secrets: DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID
 name: Website scrape
 
 on:
-  schedule:
-    - cron: "21 * * * *"
   workflow_dispatch:
 
 permissions:

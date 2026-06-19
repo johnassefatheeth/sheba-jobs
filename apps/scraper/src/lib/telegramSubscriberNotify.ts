@@ -1,4 +1,4 @@
-import { prisma } from "@sheba/db";
+import { prisma } from "@sheba/db/shared";
 import { jobMatchesSubscriber } from "./telegramSubscriberMatch.js";
 import { sendJobToTelegramChat, type TelegramJob } from "./telegramPoster.js";
 
