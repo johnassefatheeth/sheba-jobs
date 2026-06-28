@@ -53,6 +53,25 @@ function resolveTelegramChannelLink(): string | null {
   return null;
 }
 
+function resolveTelegramGroupLink(): string | null {
+  const custom = process.env.TELEGRAM_GROUP_LINK?.trim();
+  if (custom) return custom;
+
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (!groupId) return null;
+  if (groupId.startsWith('@')) return `https://t.me/${groupId.slice(1)}`;
+  return null;
+}
+
+function getTelegramBroadcastChatIds(): string[] {
+  const ids: string[] = [];
+  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (channelId) ids.push(channelId);
+  if (groupId) ids.push(groupId);
+  return ids;
+}
+
 export function formatChannelAnnouncement(post: ChannelPostPayload): string {
   const icon = post.type === 'challenge' ? '🏆' : '📰';
   const label = post.type === 'challenge' ? 'Challenge' : 'News';
@@ -61,11 +80,22 @@ export function formatChannelAnnouncement(post: ChannelPostPayload): string {
 
   let message = `${icon} <b>${label}: ${title}</b>\n\n${body}`;
 
-  const link = resolveTelegramChannelLink();
-  if (link) {
-    const handle = link.replace(/^https?:\/\/t\.me\//i, '').split('/')[0];
+  const channelLink = resolveTelegramChannelLink();
+  const groupLink = resolveTelegramGroupLink();
+  const links: string[] = [];
+
+  if (channelLink) {
+    const handle = channelLink.replace(/^https?:\/\/t\.me\//i, '').split('/')[0];
     const labelText = handle ? `@${handle}` : 'our channel';
-    message += `\n\n📢 <a href="${escapeHtml(link)}">Follow ${escapeHtml(labelText)}</a>`;
+    links.push(`📢 <a href="${escapeHtml(channelLink)}">Follow ${escapeHtml(labelText)}</a>`);
+  }
+  if (groupLink) {
+    const handle = groupLink.replace(/^https?:\/\/t\.me\//i, '').split('/')[0];
+    const labelText = handle ? `@${handle}` : 'our group';
+    links.push(`📢 <a href="${escapeHtml(groupLink)}">Join ${escapeHtml(labelText)}</a>`);
+  }
+  if (links.length > 0) {
+    message += `\n\n${links.join('\n')}`;
   }
 
   return message;
@@ -76,15 +106,18 @@ function truncateCaption(text: string): string {
   return text.slice(0, TELEGRAM_CAPTION_MAX - 1).trimEnd() + '…';
 }
 
-function telegramBotConfig(): { token: string; channelId: string } | null {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+
+function getTelegramBroadcastChatIds(): string[] {
+  const ids: string[] = [];
   const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
-  if (!token || !channelId) return null;
-  return { token, channelId };
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (channelId) ids.push(channelId);
+  if (groupId) ids.push(groupId);
+  return ids;
 }
 
 export function telegramConfigured(): boolean {
-  return Boolean(telegramBotConfig());
+  return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && getTelegramBroadcastChatIds().length > 0);
 }
 
 function buildReplyMarkup(post: ChannelPostPayload) {
@@ -217,9 +250,13 @@ async function sendTelegramText(
 export async function publishChannelPost(
   post: ChannelPostPayload
 ): Promise<{ ok: true; messageId?: string } | { ok: false; error: string }> {
-  const config = telegramBotConfig();
-  if (!config) {
-    return { ok: false, error: 'TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_CHANNEL_ID not set' };
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const chatIds = getTelegramBroadcastChatIds();
+  if (!token || chatIds.length === 0) {
+    return {
+      ok: false,
+      error: 'TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID and/or TELEGRAM_BOT_GROUP_ID not set',
+    };
   }
 
   const text = formatChannelAnnouncement(post);
@@ -228,37 +265,38 @@ export async function publishChannelPost(
   const hasLocalImage = Boolean(post.imagePath);
   const remoteUrl = isTelegramPhotoUrl(post.imageUrl) ? post.imageUrl!.trim() : null;
 
-  let result: { ok: boolean; description?: string; messageId?: string };
+  let lastMessageId: string | undefined;
+  let lastError: string | undefined;
 
-  if (hasLocalImage) {
-    const buffer = await readChannelPostImage(post.imagePath);
-    if (!buffer) {
-      return { ok: false, error: 'Channel post image not found in storage' };
+  for (const chatId of chatIds) {
+    let result: { ok: boolean; description?: string; messageId?: string };
+
+    if (hasLocalImage) {
+      const buffer = await readChannelPostImage(post.imagePath);
+      if (!buffer) {
+        return { ok: false, error: 'Channel post image not found in storage' };
+      }
+      const filename = channelPostImageFilename(post.imagePath) || 'image.jpg';
+      result = await sendTelegramPhotoMultipart(token, chatId, caption, buffer, filename, replyMarkup);
+      if (!result.ok && remoteUrl) {
+        result = await sendTelegramPhotoUrl(token, chatId, caption, remoteUrl, replyMarkup);
+      }
+    } else if (remoteUrl) {
+      result = await sendTelegramPhotoUrl(token, chatId, caption, remoteUrl, replyMarkup);
+      if (!result.ok) {
+        result = await sendTelegramText(token, chatId, text, replyMarkup);
+      }
+    } else {
+      result = await sendTelegramText(token, chatId, text, replyMarkup);
     }
-    const filename = channelPostImageFilename(post.imagePath) || 'image.jpg';
-    result = await sendTelegramPhotoMultipart(
-      config.token,
-      config.channelId,
-      caption,
-      buffer,
-      filename,
-      replyMarkup
-    );
-    if (!result.ok && remoteUrl) {
-      result = await sendTelegramPhotoUrl(config.token, config.channelId, caption, remoteUrl, replyMarkup);
-    }
-  } else if (remoteUrl) {
-    result = await sendTelegramPhotoUrl(config.token, config.channelId, caption, remoteUrl, replyMarkup);
+
     if (!result.ok) {
-      result = await sendTelegramText(config.token, config.channelId, text, replyMarkup);
+      lastError = result.description ?? 'Telegram send failed';
+      return { ok: false, error: `${lastError} (chat ${chatId})` };
     }
-  } else {
-    result = await sendTelegramText(config.token, config.channelId, text, replyMarkup);
+
+    lastMessageId = result.messageId;
   }
 
-  if (!result.ok) {
-    return { ok: false, error: result.description ?? 'Telegram send failed' };
-  }
-
-  return { ok: true, messageId: result.messageId };
+  return { ok: true, messageId: lastMessageId };
 }

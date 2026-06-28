@@ -1,5 +1,5 @@
 import { prisma } from "@sheba/db";
-import { resolveTelegramChannelLink } from "./telegramPoster.js";
+import { resolveTelegramChannelLink, resolveTelegramGroupLink } from "./telegramPoster.js";
 import { subscriberHasFilters } from "./telegramSubscriberMatch.js";
 
 type TelegramUser = {
@@ -144,6 +144,11 @@ function mainMenuKeyboard(): InlineButton[][] {
     rows.push([{ text: "📢 Join channel", url: channelLink }]);
   }
 
+  const groupLink = resolveTelegramGroupLink();
+  if (groupLink) {
+    rows.push([{ text: "👥 Join group", url: groupLink }]);
+  }
+
   return rows;
 }
 
@@ -261,13 +266,19 @@ async function handleStart(chatId: number, from: TelegramUser): Promise<void> {
   }
 
   const channelLink = resolveTelegramChannelLink();
-  const channelLine = channelLink
-    ? `\n\n📢 Our public channel: <a href="${channelLink}">join here</a>`
-    : "";
+  const groupLink = resolveTelegramGroupLink();
+  const communityLines: string[] = [];
+  if (channelLink) {
+    communityLines.push(`📢 Channel: <a href="${channelLink}">join here</a>`);
+  }
+  if (groupLink) {
+    communityLines.push(`👥 Group: <a href="${groupLink}">join here</a>`);
+  }
+  const communityBlock = communityLines.length > 0 ? `\n\n${communityLines.join("\n")}` : "";
 
   await sendText(
     chatId,
-    `<b>Welcome to Sheba Jobs</b> 🇪🇹\n\nI can DM you new jobs that match your preferences.${channelLine}\n\nUse the buttons below to set filters, or send /help anytime.`,
+    `<b>Welcome to Sheba Jobs</b> 🇪🇹\n\nI can DM you new jobs that match your preferences.${communityBlock}\n\nUse the buttons below to set filters, or send /help anytime.`,
     mainMenuKeyboard()
   );
 }

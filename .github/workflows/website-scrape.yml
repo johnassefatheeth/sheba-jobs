@@ -23,7 +23,7 @@
 #
 # ~155 runs/week (~22/day avg) × ~3 min ≈ under 2,000 Actions min/month on private repos.
 #
-# Secrets: DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID
+# Secrets: DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_CHANNEL_ID, TELEGRAM_BOT_GROUP_ID
 name: Website scrape
 
 on:
@@ -67,4 +67,5 @@ jobs:
           WEBSITE_JOBS_PROVIDER: all
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_CHANNEL_ID: ${{ secrets.TELEGRAM_BOT_CHANNEL_ID }}
+          TELEGRAM_BOT_GROUP_ID: ${{ secrets.TELEGRAM_BOT_GROUP_ID }}
           NEXT_PUBLIC_SITE_URL: https://jobs.sheba-labs.com

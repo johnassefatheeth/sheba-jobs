@@ -1,5 +1,5 @@
 import { ensureUniqueJobSlug, prisma } from "@sheba/db";
-import { postJobToTelegramChannel } from "./telegramPoster.js";
+import { postJobToTelegramChannel, telegramBroadcastConfigured } from "./telegramPoster.js";
 import { notifyMatchingTelegramSubscribers } from "./telegramSubscriberNotify.js";
 
 type PersistedJob = {
@@ -35,7 +35,7 @@ export async function assignSlugIfMissing(job: { id: string; title: string; comp
 }
 
 function telegramBotConfigured(): boolean {
-  return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_BOT_CHANNEL_ID?.trim());
+  return telegramBroadcastConfigured();
 }
 
 export async function markJobPostedToTelegram(jobId: string) {
@@ -59,7 +59,7 @@ export async function announceJobOnTelegram(job: PersistedJob, isNew: boolean) {
 export async function postRecentJobsToTelegram(options?: { limit?: number }) {
   const target = options?.limit ?? Number(process.env.TELEGRAM_BACKFILL_LIMIT ?? 10);
   if (!telegramBotConfigured()) {
-    throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID in apps/scraper/.env");
+    throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID and/or TELEGRAM_BOT_GROUP_ID in apps/scraper/.env");
   }
 
   const pageSize = Math.max(target, 25);

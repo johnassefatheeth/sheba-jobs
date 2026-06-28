@@ -282,7 +282,7 @@ export function formatTelegramPhotoCaption(job: TelegramJob): string {
 
   lines.push("");
   lines.push("🇪🇹 <i>Sheba Jobs Ethiopia</i>");
-  lines.push(formatChannelLinkLine(true));
+  lines.push(formatBroadcastLinkLine(true));
 
   let caption = lines.join("\n");
   if (caption.length > 1020) {
@@ -329,7 +329,7 @@ export function formatTelegramJobMessage(job: TelegramJob): string {
 
   lines.push("");
   lines.push("🇪🇹 <i>Sheba Jobs Ethiopia</i>");
-  lines.push(formatChannelLinkLine(false));
+  lines.push(formatBroadcastLinkLine(false));
 
   return lines.join("\n");
 }
@@ -347,25 +347,67 @@ export function resolveTelegramChannelLink(): string | null {
   return null;
 }
 
-function formatChannelLinkLine(compact: boolean): string {
-  const link = resolveTelegramChannelLink();
-  if (!link) return "";
+/** Public group URL (explicit TELEGRAM_GROUP_LINK or @username from TELEGRAM_BOT_GROUP_ID). */
+export function resolveTelegramGroupLink(): string | null {
+  const explicit = process.env.TELEGRAM_GROUP_LINK?.trim();
+  if (explicit) return explicit;
 
-  const handle = link.replace(/^https?:\/\/t\.me\//i, "").split("/")[0];
-  const label = handle ? `@${handle}` : "our channel";
-  if (compact) {
-    return `\n📢 <a href="${escapeHtml(link)}">Follow ${escapeHtml(label)}</a>`;
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (groupId?.startsWith("@")) {
+    return `https://t.me/${groupId.slice(1)}`;
   }
 
-  return `\n\n📢 <a href="${escapeHtml(link)}">Follow ${escapeHtml(label)}</a> for every job`;
+  return null;
+}
+
+/** Outbound job posts go to every configured broadcast chat (channel + optional group). */
+export function getTelegramBroadcastChatIds(): string[] {
+  const ids: string[] = [];
+  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (channelId) ids.push(channelId);
+  if (groupId) ids.push(groupId);
+  return ids;
+}
+
+export function telegramBroadcastConfigured(): boolean {
+  return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && getTelegramBroadcastChatIds().length > 0);
+}
+
+function formatBroadcastLink(compact: boolean, link: string, verb: "Follow" | "Join"): string {
+  const handle = link.replace(/^https?:\/\/t\.me\//i, "").split("/")[0];
+  const label = handle ? `@${handle}` : link;
+  if (compact) {
+    return `📢 <a href="${escapeHtml(link)}">${verb} ${escapeHtml(label)}</a>`;
+  }
+  return `📢 <a href="${escapeHtml(link)}">${verb} ${escapeHtml(label)}</a>`;
+}
+
+function formatBroadcastLinkLine(compact: boolean): string {
+  const parts: string[] = [];
+  const channelLink = resolveTelegramChannelLink();
+  const groupLink = resolveTelegramGroupLink();
+
+  if (channelLink) parts.push(formatBroadcastLink(compact, channelLink, "Follow"));
+  if (groupLink) parts.push(formatBroadcastLink(compact, groupLink, "Join"));
+
+  if (parts.length === 0) return "";
+
+  const joined = parts.join(compact ? " · " : "\n");
+  if (compact) return `\n${joined}`;
+  return `\n\n${joined}${channelLink && !groupLink ? " for every job" : ""}`;
 }
 
 const TELEGRAM_DESCRIPTION_MAX = 255;
 
 type TelegramApiResult = { ok?: boolean; description?: string; result?: unknown };
 
+function telegramBotToken(): string | null {
+  return process.env.TELEGRAM_BOT_TOKEN?.trim() || null;
+}
+
 function telegramBotConfig(): { token: string; channelId: string } | null {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const token = telegramBotToken();
   const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
   if (!token || !channelId) return null;
   return { token, channelId };
@@ -433,38 +475,72 @@ export function buildDefaultChannelDescription(): string {
   return text.slice(0, TELEGRAM_DESCRIPTION_MAX - 1).trimEnd() + "…";
 }
 
-/** Set the channel description (requires bot admin with “Change channel info”). */
-export async function setTelegramChannelDescription(description?: string): Promise<boolean> {
-  const config = telegramBotConfig();
-  if (!config) {
-    console.warn("[telegram-poster] cannot set channel description: bot not configured");
+async function setTelegramChatDescription(chatId: string, description: string): Promise<boolean> {
+  const token = telegramBotToken();
+  if (!token) {
+    console.warn("[telegram-poster] cannot set chat description: TELEGRAM_BOT_TOKEN not set");
     return false;
   }
 
-  const text = (description ?? buildDefaultChannelDescription()).trim().slice(0, TELEGRAM_DESCRIPTION_MAX);
+  const text = description.trim().slice(0, TELEGRAM_DESCRIPTION_MAX);
   if (!text) {
-    console.warn("[telegram-poster] channel description is empty");
+    console.warn("[telegram-poster] chat description is empty");
     return false;
   }
 
-  const payload = await callTelegramBotApi("setChatDescription", {
-    chat_id: config.channelId,
-    description: text,
+  const response = await fetch(`https://api.telegram.org/bot${token}/setChatDescription`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, description: text }),
   });
+  const payload = (await response.json()) as TelegramApiResult;
 
   if (!payload.ok) {
-    console.error("[telegram-poster] setChatDescription failed:", payload.description ?? "unknown error");
+    console.error(`[telegram-poster] setChatDescription failed for ${chatId}:`, payload.description ?? "unknown error");
     return false;
   }
 
-  console.log("[telegram-poster] channel description updated");
+  console.log(`[telegram-poster] description updated for ${chatId}`);
   return true;
 }
 
-/** Sync channel description when TELEGRAM_SYNC_CHANNEL_INFO=true. */
+/** Set the channel description (requires bot admin with “Change channel info”). */
+export async function setTelegramChannelDescription(description?: string): Promise<boolean> {
+  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
+  if (!channelId) {
+    console.warn("[telegram-poster] cannot set channel description: TELEGRAM_BOT_CHANNEL_ID not set");
+    return false;
+  }
+
+  return setTelegramChatDescription(channelId, description ?? buildDefaultChannelDescription());
+}
+
+/** Set the group description (requires bot admin with “Change group info”). */
+export async function setTelegramGroupDescription(description?: string): Promise<boolean> {
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (!groupId) {
+    console.warn("[telegram-poster] cannot set group description: TELEGRAM_BOT_GROUP_ID not set");
+    return false;
+  }
+
+  return setTelegramChatDescription(groupId, description ?? buildDefaultChannelDescription());
+}
+
+/** Sync channel + group descriptions when TELEGRAM_SYNC_CHANNEL_INFO=true. */
 export async function syncTelegramChannelInfoIfEnabled(): Promise<void> {
   if (process.env.TELEGRAM_SYNC_CHANNEL_INFO?.trim().toLowerCase() !== "true") return;
-  await setTelegramChannelDescription();
+
+  const description = buildDefaultChannelDescription();
+  const tasks: Promise<boolean>[] = [];
+
+  if (process.env.TELEGRAM_BOT_CHANNEL_ID?.trim()) {
+    tasks.push(setTelegramChannelDescription(description));
+  }
+  if (process.env.TELEGRAM_BOT_GROUP_ID?.trim()) {
+    tasks.push(setTelegramGroupDescription(description));
+  }
+
+  await Promise.all(tasks);
 }
 
 function isTelegramPhotoUrl(url?: string | null): boolean {
@@ -477,13 +553,15 @@ function isTelegramPhotoUrl(url?: string | null): boolean {
   }
 }
 
+const BROADCAST_POST_DELAY_MS = 1100;
+
+/** Post a job to every configured broadcast chat (channel and/or group). */
 export async function postJobToTelegramChannel(
   job: TelegramJob,
   options?: { allowPhoto?: boolean }
 ): Promise<boolean> {
-  const config = telegramBotConfig();
-  if (!config) return false;
-  const { token, channelId } = config;
+  const chatIds = getTelegramBroadcastChatIds();
+  if (!telegramBotToken() || chatIds.length === 0) return false;
 
   const applyPresentation = resolveApplyPresentation(job);
   if (!applyPresentation.postable) {
@@ -491,45 +569,20 @@ export async function postJobToTelegramChannel(
     return false;
   }
 
-  const replyMarkup = applyPresentation.buttonUrl
-    ? {
-        reply_markup: {
-          inline_keyboard: [[{ text: "✅ Apply Now", url: applyPresentation.buttonUrl }]],
-        },
-      }
-    : {};
-
-  const allowPhoto = options?.allowPhoto !== false;
-  const logoUrl =
-    allowPhoto && isTelegramPhotoUrl(job.companyLogoUrl) ? job.companyLogoUrl!.trim() : null;
-  const endpoint = logoUrl ? "sendPhoto" : "sendMessage";
-  const body = logoUrl
-    ? {
-        chat_id: channelId,
-        photo: logoUrl,
-        caption: formatTelegramPhotoCaption(job),
-        parse_mode: "HTML",
-        ...replyMarkup,
-      }
-    : {
-        chat_id: channelId,
-        text: formatTelegramJobMessage(job),
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        ...replyMarkup,
-      };
-
-  const result = await postTelegramMessage(token, endpoint, body);
-  if (!result.ok) {
-    if (logoUrl) {
-      console.warn("[telegram-poster] photo send failed, retrying as text:", result.description);
-      return postJobToTelegramChannel(job, { allowPhoto: false });
+  let allOk = true;
+  for (let index = 0; index < chatIds.length; index++) {
+    if (index > 0) {
+      await new Promise((resolve) => setTimeout(resolve, BROADCAST_POST_DELAY_MS));
     }
-    console.error("[telegram-poster] send failed:", result.description);
-    return false;
+
+    const ok = await sendJobToTelegramChat(chatIds[index], job, options);
+    if (!ok) {
+      console.error(`[telegram-poster] broadcast failed for ${chatIds[index]}:`, job.title.slice(0, 60));
+      allOk = false;
+    }
   }
 
-  return true;
+  return allOk;
 }
 
 export async function sendJobToTelegramChat(

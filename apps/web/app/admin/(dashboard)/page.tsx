@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
             </div>
             {!stats.telegram.configured ? (
               <p className="admin-error" style={{ marginTop: '1rem' }}>
-                Telegram bot is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID to publish posts.
+                Telegram bot is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_CHANNEL_ID and/or TELEGRAM_BOT_GROUP_ID to publish posts.
               </p>
             ) : null}
           </div>

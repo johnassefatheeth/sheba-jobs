@@ -214,20 +214,28 @@ Each recent text message becomes a row: **title** = first line, **description** 
 
 ---
 
-## Telegram — outbound job channel
+## Telegram — outbound job channel & group
 
-Posts jobs from your database to a **public Telegram channel** with a consistent format and an inline **Apply** button (same URL as the website apply link). New jobs are announced automatically when the website scraper creates them, as long as the bot env vars are set.
+Posts jobs from your database to your **Telegram channel** and optional **public group** with a consistent format and an inline **Apply** button (same URL as the website apply link). New jobs are announced automatically when the website scraper creates them, as long as the bot env vars are set.
 
 ### 1. Create a bot
 
 1. Open Telegram and message **@BotFather**.
 2. Send `/newbot`, follow the prompts, and copy the **bot token**.
 
-### 2. Create a channel and add the bot
+### 2. Create a channel and/or group, add the bot
 
-1. Create a new **channel** in Telegram (public or private).
-2. Open channel settings → **Administrators** → add your bot.
-3. Grant **Post messages** and **Change channel info** (needed to set the channel description).
+**Channel** (broadcast feed):
+
+1. Create a **channel** in Telegram (public or private).
+2. Channel settings → **Administrators** → add your bot.
+3. Grant **Post messages** and **Change channel info**.
+
+**Group** (optional — e.g. for invite-link growth alongside the channel):
+
+1. Create a **supergroup** with a public `@username` (e.g. `@ShebaJobsEt`).
+2. Restrict members to **admins only** for sending messages (broadcast-style).
+3. Add the same bot as **admin** with **Post messages** and **Change group info**.
 
 ### 3. Configure env
 
@@ -237,13 +245,15 @@ In **`apps/scraper/.env`** (and `apps/api/.env` if the API runs the scraper):
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 # Public channel: @YourChannelName   Private channel: numeric id like -1001234567890
 TELEGRAM_BOT_CHANNEL_ID=@YourChannelName
+# Optional second destination — same job posts go to channel AND group
+TELEGRAM_BOT_GROUP_ID=@ShebaJobsEt
 ```
 
-For a private channel, forward any message from the channel to **@userinfobot** or **@getidsbot** to get the numeric chat id.
+For a private channel or group, forward any message to **@userinfobot** or **@getidsbot** to get the numeric chat id.
 
-### 4. Set the channel description (optional)
+### 4. Set the channel/group description (optional)
 
-The bot can set the channel **About** text (what subscribers see before joining) via the Telegram Bot API.
+The bot can set the **About** text on both destinations via the Telegram Bot API.
 
 **One-time** (uses a default description, or `TELEGRAM_CHANNEL_DESCRIPTION` from `.env`):
 
@@ -281,9 +291,9 @@ Already-posted jobs are skipped; failed sends do not count toward the limit, so 
 
 ### 6. Automatic posts for new jobs
 
-No extra step needed. When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set, every **new** job saved by the website scraper (or API scheduler) is posted to the channel once.
+No extra step needed. When `TELEGRAM_BOT_TOKEN` is set and at least one of `TELEGRAM_BOT_CHANNEL_ID` / `TELEGRAM_BOT_GROUP_ID` is set, every **new** job saved by the website scraper (or API scheduler) is posted to each configured destination once.
 
-Each channel post includes a **Follow @channel** link (from `TELEGRAM_BOT_CHANNEL_ID` or `TELEGRAM_CHANNEL_LINK`).
+Each post includes **Follow @channel** and/or **Join @group** links (from env or `TELEGRAM_CHANNEL_LINK` / `TELEGRAM_GROUP_LINK`).
 
 ### 7. Personalized job alerts (DM bot)
 

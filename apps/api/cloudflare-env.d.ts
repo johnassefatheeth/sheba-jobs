@@ -11,7 +11,9 @@ interface Env {
   ADMIN_TOKEN_SECRET?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_BOT_CHANNEL_ID?: string;
+  TELEGRAM_BOT_GROUP_ID?: string;
   TELEGRAM_CHANNEL_LINK?: string;
+  TELEGRAM_GROUP_LINK?: string;
   HAHU_GRAPHQL_URL?: string;
   HAHU_JOBS_LIMIT?: string;
   HAHU_JOBS_OFFSET?: string;

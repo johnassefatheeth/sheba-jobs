@@ -74,7 +74,7 @@ npm run telegram:post-recent  # seed last 10 jobs to your Telegram channel (need
 npm run telegram:set-channel-info  # set channel About/description (bot needs “Change channel info” admin right)
 ```
 
-New scraped jobs are posted automatically to your Telegram channel when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` are set.
+New scraped jobs are posted automatically to your Telegram channel and/or group when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_CHANNEL_ID` / `TELEGRAM_BOT_GROUP_ID` are set.
 
 Deployment
 ----------

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1080" />
+  <title>Sheba Jobs — Story Poster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;600;700;800&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .poster {
+      width: 1080px;
+      height: 1920px;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, #1a1508 0%, #0a0a0a 45%, #000 100%);
+      color: #d4af37;
+      font-family: "Noto Sans Ethiopic", sans-serif;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 80px 72px 96px;
+      border: 2px solid #3d3218;
+    }
+    .poster::before,
+    .poster::after {
+      content: "";
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      border: 1px solid rgba(212, 175, 55, 0.25);
+      pointer-events: none;
+    }
+    .poster::before { top: 48px; left: 48px; border-right: none; border-bottom: none; }
+    .poster::after { bottom: 48px; right: 48px; border-left: none; border-top: none; }
+    .flag { font-size: 56px; margin-bottom: 32px; }
+    .brand-en {
+      font-family: "Cormorant Garamond", serif;
+      font-size: 72px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: #e8c547;
+      text-shadow: 0 0 40px rgba(212, 175, 55, 0.35);
+      margin-bottom: 12px;
+    }
+    .brand-am {
+      font-size: 88px;
+      font-weight: 800;
+      line-height: 1.1;
+      text-align: center;
+      margin-bottom: 48px;
+      background: linear-gradient(180deg, #f5d76e 0%, #c9a227 55%, #8b6914 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .divider {
+      width: 160px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #d4af37, transparent);
+      margin-bottom: 56px;
+    }
+    .headline {
+      font-size: 64px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.35;
+      color: #f0d878;
+      margin-bottom: 64px;
+      max-width: 920px;
+    }
+    .benefits {
+      list-style: none;
+      width: 100%;
+      max-width: 900px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+    .benefits li {
+      display: flex;
+      align-items: flex-start;
+      gap: 28px;
+      font-size: 42px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: #e2c96a;
+    }
+    .benefits .icon {
+      flex-shrink: 0;
+      width: 72px;
+      height: 72px;
+      border: 2px solid rgba(212, 175, 55, 0.5);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      background: rgba(212, 175, 55, 0.08);
+    }
+    .cta {
+      margin-top: auto;
+      width: 100%;
+      text-align: center;
+      padding: 40px 32px;
+      border: 2px solid #d4af37;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(212, 175, 55, 0.12) 0%, rgba(0, 0, 0, 0.4) 100%);
+    }
+    .cta-main {
+      font-size: 52px;
+      font-weight: 800;
+      color: #f5d76e;
+      margin-bottom: 20px;
+    }
+    .cta-sub {
+      font-size: 36px;
+      font-weight: 600;
+      color: #c9a227;
+      letter-spacing: 0.04em;
+    }
+    .cta-sub span { color: #f0d878; }
+  </style>
+</head>
+<body>
+  <div class="poster" id="poster">
+    <div class="flag">🇪🇹</div>
+    <div class="brand-en">Sheba Jobs</div>
+    <div class="brand-am">ሼባ ጆብስ ኢትዮጵያ</div>
+    <div class="divider"></div>
+    <p class="headline">የህልሞት ስራዎን በአንድ ቦታ ያግኙ — ፈጣን፣ ነፃ፣ አስተማማኝ</p>
+    <ul class="benefits">
+      <li><span class="icon">📢</span><span>ከ Ethiojobs፣ HaHu፣ Afriwork፣ EffoySira እና ቴሌግራም — አዲስ ስራዎች በቀጥታ</span></li>
+      <li><span class="icon">🔍</span><span>በ <strong>jobs.sheba-labs.com</strong> ላይ ፈልጉ፣ አጣሩ እና ዝርዝሩን ያንብቡ</span></li>
+      <li><span class="icon">🔔</span><span><strong>@ShebaJobsbot</strong> — ለእርስዎ ብቻ የሚመረጡ ስራዎች ማሳወቂያ</span></li>
+      <li><span class="icon">⚡</span><span>ቀን በቀን ይዘመናል — እድሉን ከሌሎች በፊት ይያዙ</span></li>
+    </ul>
+    <div class="cta">
+      <div class="cta-main">አሁኑኑ ቻናሉን ይከተሉ!</div>
+      <div class="cta-sub"><span>@YOUR_CHANNEL</span> &nbsp;•&nbsp; jobs.sheba-labs.com</div>
+    </div>
+  </div>
+</body>
+</html>
