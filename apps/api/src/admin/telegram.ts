@@ -106,16 +106,6 @@ function truncateCaption(text: string): string {
   return text.slice(0, TELEGRAM_CAPTION_MAX - 1).trimEnd() + '…';
 }
 
-
-function getTelegramBroadcastChatIds(): string[] {
-  const ids: string[] = [];
-  const channelId = process.env.TELEGRAM_BOT_CHANNEL_ID?.trim();
-  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
-  if (channelId) ids.push(channelId);
-  if (groupId) ids.push(groupId);
-  return ids;
-}
-
 export function telegramConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && getTelegramBroadcastChatIds().length > 0);
 }
