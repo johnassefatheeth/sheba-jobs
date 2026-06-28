@@ -585,6 +585,23 @@ export async function postJobToTelegramChannel(
   return allOk;
 }
 
+/** Post a job to the configured group only (does not touch the channel). */
+export async function postJobToTelegramGroup(
+  job: TelegramJob,
+  options?: { allowPhoto?: boolean }
+): Promise<boolean> {
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  if (!telegramBotToken() || !groupId) return false;
+
+  const applyPresentation = resolveApplyPresentation(job);
+  if (!applyPresentation.postable) {
+    console.warn("[telegram-poster] skip job without apply details:", job.title.slice(0, 60));
+    return false;
+  }
+
+  return sendJobToTelegramChat(groupId, job, options);
+}
+
 export async function sendJobToTelegramChat(
   chatId: string,
   job: TelegramJob,

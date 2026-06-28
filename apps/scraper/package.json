@@ -12,6 +12,7 @@
     "start:website:daemon": "tsx src/websiteScraperDaemon.ts",
     "telegram:session": "tsx src/telegramSessionSetup.ts",
     "telegram:post-recent": "tsx src/telegramChannelBackfill.ts",
+    "telegram:post-recent-group": "tsx src/telegramGroupBackfill.ts",
     "telegram:set-channel-info": "tsx src/telegramSetChannelInfo.ts",
     "telegram:bot": "tsx src/telegramJobBotRunner.ts"
   },

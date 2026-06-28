@@ -1,5 +1,5 @@
 import { ensureUniqueJobSlug, prisma } from "@sheba/db";
-import { postJobToTelegramChannel, telegramBroadcastConfigured } from "./telegramPoster.js";
+import { postJobToTelegramChannel, postJobToTelegramGroup, telegramBroadcastConfigured } from "./telegramPoster.js";
 import { notifyMatchingTelegramSubscribers } from "./telegramSubscriberNotify.js";
 
 type PersistedJob = {
@@ -113,4 +113,58 @@ export async function postRecentJobsToTelegram(options?: { limit?: number }) {
   );
 
   return { posted, skipped, failed, scanned, target, exhausted };
+}
+
+/** Backfill the group only — ignores telegramPostedAt (channel may already have these jobs). */
+export async function postRecentJobsToTelegramGroup(options?: { limit?: number }) {
+  const groupId = process.env.TELEGRAM_BOT_GROUP_ID?.trim();
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!token || !groupId) {
+    throw new Error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_GROUP_ID in apps/scraper/.env");
+  }
+
+  const target = options?.limit ?? Number(process.env.TELEGRAM_BACKFILL_LIMIT ?? 10);
+  const pageSize = Math.max(target, 25);
+  const maxScan = Number(process.env.TELEGRAM_BACKFILL_MAX_SCAN ?? 500);
+
+  let posted = 0;
+  let failed = 0;
+  let scanned = 0;
+  let offset = 0;
+
+  while (posted < target && scanned < maxScan) {
+    const jobs = await prisma.job.findMany({
+      where: { isExpired: false },
+      orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
+      skip: offset,
+      take: pageSize,
+    });
+
+    if (jobs.length === 0) break;
+    offset += jobs.length;
+    scanned += jobs.length;
+
+    for (const job of jobs) {
+      if (posted >= target) break;
+
+      const success = await postJobToTelegramGroup(job);
+      if (success) {
+        posted++;
+        console.log("[telegram-group-backfill] posted:", job.title.slice(0, 60));
+      } else {
+        failed++;
+        console.warn("[telegram-group-backfill] failed:", job.title.slice(0, 60));
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, TELEGRAM_POST_DELAY_MS));
+    }
+  }
+
+  const exhausted = posted < target;
+  console.log(
+    `[telegram-group-backfill] done: ${posted}/${target} posted to ${groupId}, ${failed} failed, ${scanned} scanned` +
+      (exhausted ? " (ran out of jobs to try)" : "")
+  );
+
+  return { posted, failed, scanned, target, exhausted };
 }
